@@ -1,0 +1,44 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/Users/kevrs/AppData/Roaming/uv/tools/bmad-loop/Scripts/bmad-loop.exe relay SessionStart"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/Users/kevrs/AppData/Roaming/uv/tools/bmad-loop/Scripts/bmad-loop.exe relay Stop"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/Users/kevrs/AppData/Roaming/uv/tools/bmad-loop/Scripts/bmad-loop.exe relay SessionEnd"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/Users/kevrs/AppData/Roaming/uv/tools/bmad-loop/Scripts/bmad-loop.exe relay PreCompact"
+          }
+        ]
+      }
+    ]
+  }
+}

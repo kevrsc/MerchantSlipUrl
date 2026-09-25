@@ -1,0 +1,68 @@
+# BMAD runtime / generated
+.bmad-loop/runs/
+.bmad-loop/cache/
+.bmad-loop/policy.toml
+_bmad/render/
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+
+# Editors / IDEs (root and nested)
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.swp
+*.swo
+*~
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs / temp
+*.log
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Java / Gradle / Spring Boot (any module)
+**/.gradle/
+**/build/
+**/out/
+**/bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+*.class
+*.war
+*.ear
+hs_err_pid*
+replay_pid*
+# Ignore jars except the Gradle wrapper binary
+*.jar
+!**/gradle/wrapper/gradle-wrapper.jar
+
+# Node (if added later)
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Python / uv local
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Coverage / reports
+coverage/
+*.lcov
+htmlcov/

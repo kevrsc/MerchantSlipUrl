@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ShortyUrl — Architecture Walkthrough</title>
+  <style>
+    :root {
+      --bg: #0f1714;
+      --bg-elev: #1a2621;
+      --ink: #e8f0ec;
+      --muted: #9bb0a6;
+      --accent: #3dba8a;
+      --accent-dim: #2a7a5c;
+      --warn: #e0b35a;
+      --line: #2c3d35;
+      --card: #15201c;
+      --mono: "IBM Plex Mono", "Cascadia Mono", "Consolas", monospace;
+      --sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; height: 100%;
+      background: var(--bg); color: var(--ink);
+      font-family: var(--sans);
+    }
+    body {
+      background:
+        radial-gradient(ellipse 80% 50% at 10% 0%, #1a3d30 0%, transparent 55%),
+        radial-gradient(ellipse 60% 40% at 90% 100%, #243828 0%, transparent 50%),
+        var(--bg);
+    }
+    .deck { height: 100%; display: flex; flex-direction: column; }
+    .slides { flex: 1; position: relative; overflow: hidden; }
+    .slide {
+      position: absolute; inset: 0;
+      padding: clamp(1.5rem, 4vw, 3.5rem) clamp(1.5rem, 5vw, 4.5rem);
+      display: none; flex-direction: column; justify-content: center;
+      opacity: 0; transition: opacity 0.25s ease;
+    }
+    .slide.active { display: flex; opacity: 1; }
+    .eyebrow {
+      font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.14em;
+      text-transform: uppercase; color: var(--accent); margin: 0 0 0.75rem;
+    }
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.4rem); font-weight: 600;
+      margin: 0 0 0.75rem; line-height: 1.1; letter-spacing: -0.02em;
+    }
+    h2 {
+      font-size: clamp(1.5rem, 3.2vw, 2.4rem); font-weight: 600;
+      margin: 0 0 1rem; letter-spacing: -0.02em;
+    }
+    p.lead { font-size: 1.15rem; color: var(--muted); max-width: 40rem; line-height: 1.5; margin: 0 0 1.5rem; }
+    .grid { display: grid; gap: 1rem; }
+    .grid-3 { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    .grid-2 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    .card {
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: 10px; padding: 1rem 1.15rem;
+    }
+    .card h3 { margin: 0 0 0.4rem; font-size: 1rem; color: var(--accent); }
+    .card p, .card li { margin: 0; color: var(--muted); font-size: 0.95rem; line-height: 1.45; }
+    .card ul { margin: 0.35rem 0 0; padding-left: 1.1rem; }
+    .pill {
+      display: inline-block; font-family: var(--mono); font-size: 0.7rem;
+      border: 1px solid var(--accent-dim); color: var(--accent);
+      padding: 0.15rem 0.5rem; border-radius: 999px; margin-right: 0.35rem;
+    }
+    table {
+      width: 100%; border-collapse: collapse; font-size: 0.9rem;
+      max-width: 52rem;
+    }
+    th, td {
+      text-align: left; padding: 0.55rem 0.7rem;
+      border-bottom: 1px solid var(--line); vertical-align: top;
+    }
+    th { color: var(--accent); font-weight: 600; font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; }
+    td { color: var(--muted); }
+    td strong { color: var(--ink); font-weight: 600; }
+    .layers {
+      display: flex; flex-direction: column; gap: 0.55rem; max-width: 36rem;
+    }
+    .layer {
+      display: flex; align-items: center; gap: 1rem;
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: 10px; padding: 0.85rem 1.1rem;
+    }
+    .layer .tag {
+      font-family: var(--mono); font-size: 0.72rem; color: var(--bg);
+      background: var(--accent); padding: 0.25rem 0.55rem; border-radius: 6px;
+      min-width: 6.5rem; text-align: center;
+    }
+    .arrow { color: var(--accent-dim); text-align: center; font-size: 1.1rem; }
+    svg.flow { width: 100%; max-width: 640px; height: auto; margin-top: 0.5rem; }
+    .footer-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.75rem 1.5rem; border-top: 1px solid var(--line);
+      background: rgba(15, 23, 20, 0.85); backdrop-filter: blur(8px);
+      font-family: var(--mono); font-size: 0.75rem; color: var(--muted);
+    }
+    .nav button {
+      background: transparent; border: 1px solid var(--line); color: var(--ink);
+      font-family: var(--mono); font-size: 0.75rem; padding: 0.4rem 0.75rem;
+      border-radius: 6px; cursor: pointer; margin-left: 0.35rem;
+    }
+    .nav button:hover { border-color: var(--accent); color: var(--accent); }
+    .dots { display: flex; gap: 0.35rem; align-items: center; }
+    .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--line); cursor: pointer;
+    }
+    .dot.on { background: var(--accent); }
+    .hint { font-size: 0.8rem; color: var(--muted); margin-top: 1.25rem; }
+    code { font-family: var(--mono); font-size: 0.88em; color: var(--warn); }
+    .ad-list { display: grid; gap: 0.55rem; max-width: 52rem; }
+    .ad {
+      display: grid; grid-template-columns: 4.5rem 1fr;
+      gap: 0.75rem; align-items: start;
+      padding: 0.65rem 0.85rem; border-left: 3px solid var(--accent-dim);
+      background: var(--card);
+    }
+    .ad .id { font-family: var(--mono); color: var(--accent); font-size: 0.8rem; }
+    .ad .rule { color: var(--muted); font-size: 0.92rem; line-height: 1.4; margin: 0; }
+    .ad .title { color: var(--ink); font-size: 0.95rem; font-weight: 600; margin: 0 0 0.2rem; }
+  </style>
+</head>
+<body>
+  <div class="deck">
+    <div class="slides" id="slides">
+
+      <section class="slide active" data-i="0">
+        <p class="eyebrow">Architecture walkthrough · ShortyUrlBmad</p>
+        <h1>Tiny URL service</h1>
+        <p class="lead">Layered Spring Boot microservice — the consistency contract that keeps five stories from drifting apart.</p>
+        <div>
+          <span class="pill">Feature altitude</span>
+          <span class="pill">Build substrate</span>
+          <span class="pill">Status final</span>
+        </div>
+        <p class="hint">← → or click Next · Esc not required</p>
+      </section>
+
+      <section class="slide" data-i="1">
+        <p class="eyebrow">Why this shape</p>
+        <h2>One deployable. Three layers.</h2>
+        <p class="lead">Merchants mint mute digital addresses; customers resolve them. Architecture keeps create, resolve, liveness, expiry, and vanity consistent.</p>
+        <div class="layers">
+          <div class="layer"><span class="tag">WEB</span><span>HTTP + Security only — no binding rules</span></div>
+          <div class="arrow">↓ depends on</div>
+          <div class="layer"><span class="tag">SERVICE</span><span>Sole mutator — create, liveness, vanity, expiry</span></div>
+          <div class="arrow">↓ depends on</div>
+          <div class="layer"><span class="tag">PERSISTENCE</span><span>JPA + H2 — the only binding store</span></div>
+        </div>
+      </section>
+
+      <section class="slide" data-i="2">
+        <p class="eyebrow">Runtime picture</p>
+        <h2>Request path</h2>
+        <svg class="flow" viewBox="0 0 640 280" xmlns="http://www.w3.org/2000/svg" aria-label="Layer dependency diagram">
+          <defs>
+            <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="#3dba8a"/>
+            </marker>
+          </defs>
+          <rect x="40" y="30" width="160" height="70" rx="10" fill="#15201c" stroke="#2c3d35"/>
+          <text x="120" y="60" text-anchor="middle" fill="#3dba8a" font-family="monospace" font-size="13">Controllers</text>
+          <text x="120" y="80" text-anchor="middle" fill="#9bb0a6" font-family="sans-serif" font-size="11">Security chain</text>
+
+          <rect x="240" y="30" width="180" height="90" rx="10" fill="#15201c" stroke="#3dba8a"/>
+          <text x="330" y="60" text-anchor="middle" fill="#3dba8a" font-family="monospace" font-size="13">Service</text>
+          <text x="330" y="80" text-anchor="middle" fill="#9bb0a6" font-family="sans-serif" font-size="11">Create · Resolve · Vanity</text>
+          <text x="330" y="98" text-anchor="middle" fill="#9bb0a6" font-family="sans-serif" font-size="11">Expiry · Liveness</text>
+
+          <rect x="480" y="40" width="120" height="70" rx="10" fill="#15201c" stroke="#2c3d35"/>
+          <text x="540" y="70" text-anchor="middle" fill="#e0b35a" font-family="monospace" font-size="12">RestClient</text>
+          <text x="540" y="90" text-anchor="middle" fill="#9bb0a6" font-family="sans-serif" font-size="11">Liveness</text>
+
+          <rect x="260" y="180" width="140" height="60" rx="10" fill="#15201c" stroke="#2c3d35"/>
+          <text x="330" y="205" text-anchor="middle" fill="#3dba8a" font-family="monospace" font-size="13">Repositories</text>
+          <text x="330" y="225" text-anchor="middle" fill="#9bb0a6" font-family="sans-serif" font-size="11">H2</text>
+
+          <line x1="200" y1="65" x2="235" y2="65" stroke="#3dba8a" stroke-width="2" marker-end="url(#arr)"/>
+          <line x1="420" y1="70" x2="475" y2="70" stroke="#3dba8a" stroke-width="2" marker-end="url(#arr)"/>
+          <line x1="330" y1="120" x2="330" y2="175" stroke="#3dba8a" stroke-width="2" marker-end="url(#arr)"/>
+        </svg>
+        <p class="hint">Web never talks to Persistence. Liveness leaves only from Service.</p>
+      </section>
+
+      <section class="slide" data-i="3">
+        <p class="eyebrow">Create pipeline</p>
+        <h2>Mint path (story-critical)</h2>
+        <div class="grid grid-2">
+          <div class="card">
+            <h3>Before the write</h3>
+            <ul>
+              <li>Basic Auth (create / vanity)</li>
+              <li>Sanitize long URL</li>
+              <li>Liveness via RestClient — follow redirects; 2xx wins</li>
+              <li>404 fails immediately; timeout/5xx → 3 × 30s</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Atomic bind</h3>
+            <ul>
+              <li>Lookup by <code>sanitizedUrl</code></li>
+              <li>Existing → return current tiny URL</li>
+              <li>New → write binding in one transaction</li>
+              <li>Store <strong>original</strong> pasted URL, not redirect target</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-i="4">
+        <p class="eyebrow">Invariants AD-1 … AD-4</p>
+        <h2>What builders must not break</h2>
+        <div class="ad-list">
+          <div class="ad"><div class="id">AD-1</div><div><p class="title">Layered single deployable</p><p class="rule">One Spring Boot process; controllers hold no binding or liveness rules.</p></div></div>
+          <div class="ad"><div class="id">AD-2</div><div><p class="title">Service sole mutator</p><p class="rule">Create, vanity, and last-access all go through transactional service methods.</p></div></div>
+          <div class="ad"><div class="id">AD-3</div><div><p class="title">H2 is the store</p><p class="rule">No second store for bindings; JPA + H2 only.</p></div></div>
+          <div class="ad"><div class="id">AD-4</div><div><p class="title">Liveness inside create</p><p class="rule">Probe before the bind transaction; retries only for timeout/5xx.</p></div></div>
+        </div>
+      </section>
+
+      <section class="slide" data-i="5">
+        <p class="eyebrow">Invariants AD-5 … AD-8</p>
+        <h2>Security, runtime, identity</h2>
+        <div class="ad-list">
+          <div class="ad"><div class="id">AD-5</div><div><p class="title">One filter chain</p><p class="rule">Basic Auth on create/vanity; resolve <code>permitAll</code>.</p></div></div>
+          <div class="ad"><div class="id">AD-6</div><div><p class="title">Local single process</p><p class="rule">Embedded Tomcat; no multi-instance shared H2 assumptions.</p></div></div>
+          <div class="ad"><div class="id">AD-7</div><div><p class="title">Inactivity config</p><p class="rule">Configurable window (5 min for testing); miss/expired never redirect.</p></div></div>
+          <div class="ad"><div class="id">AD-8</div><div><p class="title">Binding identity</p><p class="rule">Stable id; unique mutable <code>shortCode</code>; unique <code>sanitizedUrl</code> for idempotency; mute short form.</p></div></div>
+        </div>
+      </section>
+
+      <section class="slide" data-i="6">
+        <p class="eyebrow">Data shape</p>
+        <h2>Binding entity</h2>
+        <div class="card" style="max-width:36rem">
+          <h3>One row per destination binding</h3>
+          <ul>
+            <li><code>id</code> — stable surrogate PK</li>
+            <li><code>shortCode</code> — unique, mutable (vanity)</li>
+            <li><code>originalUrl</code> — merchant paste, immutable for the binding</li>
+            <li><code>sanitizedUrl</code> — unique idempotency key</li>
+            <li><code>lastAccessedAt</code> — resets inactivity window</li>
+          </ul>
+        </div>
+        <p class="hint">Vanity assign changes <code>shortCode</code> only. Existing sanitized URL never gets a second binding.</p>
+      </section>
+
+      <section class="slide" data-i="7">
+        <p class="eyebrow">Stack seed</p>
+        <h2>Pinned for cold start</h2>
+        <table>
+          <thead><tr><th>Piece</th><th>Pin</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Java</strong></td><td>21 (Initializr default 17 overridden)</td></tr>
+            <tr><td><strong>Spring Boot</strong></td><td>4.1.1</td></tr>
+            <tr><td><strong>Starters</strong></td><td>webmvc, security, data-jpa, restclient, H2</td></tr>
+            <tr><td><strong>Build</strong></td><td>Gradle 8.14+ / 9.x</td></tr>
+            <tr><td><strong>Runtime</strong></td><td>Embedded Tomcat, local single process</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="slide" data-i="8">
+        <p class="eyebrow">Capabilities → architecture</p>
+        <h2>Where stories land</h2>
+        <table>
+          <thead><tr><th>CAP</th><th>Lives in</th><th>Governed by</th></tr></thead>
+          <tbody>
+            <tr><td><strong>1 Create</strong></td><td>service + persistence</td><td>AD-1,2,3,8</td></tr>
+            <tr><td><strong>2 Resolve</strong></td><td>web redirect + service</td><td>AD-1,2,5,7</td></tr>
+            <tr><td><strong>3 Idempotent</strong></td><td>service TX</td><td>AD-2,8</td></tr>
+            <tr><td><strong>4 Liveness</strong></td><td>service RestClient</td><td>AD-4</td></tr>
+            <tr><td><strong>5–6 Auth / response</strong></td><td>web + service</td><td>AD-1,5,8</td></tr>
+            <tr><td><strong>7 Expiry</strong></td><td>service + config</td><td>AD-2,7</td></tr>
+            <tr><td><strong>8 Vanity</strong></td><td>service + persistence</td><td>AD-2,5,8</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="slide" data-i="9">
+        <p class="eyebrow">Intentionally later</p>
+        <h2>Deferred</h2>
+        <div class="grid grid-3">
+          <div class="card"><h3>shortCode algorithm</h3><p>Opaque + unique is enough for story 1.</p></div>
+          <div class="card"><h3>Sanitize details</h3><p>Must stabilize <code>sanitizedUrl</code> keys.</p></div>
+          <div class="card"><h3>External DB / scale-out</h3><p>Blocked until AD-6 is revisited.</p></div>
+          <div class="card"><h3>Cloud / orchestration</h3><p>Local Tomcat covers implementation.</p></div>
+          <div class="card"><h3>Analytics</h3><p>Spec non-goal beyond last-access.</p></div>
+          <div class="card"><h3>Secrets manager</h3><p>Local Basic Auth user for now.</p></div>
+        </div>
+      </section>
+
+      <section class="slide" data-i="10">
+        <p class="eyebrow">Close</p>
+        <h2>Ready to build</h2>
+        <p class="lead">Spine is adopted on the spec. Stories 1–5 each pause at done_checkpoint. Start with authenticated default create.</p>
+        <div class="grid grid-2">
+          <div class="card">
+            <h3>Contract</h3>
+            <p><code>SPEC.md</code> + <code>create-pipeline.md</code> + <code>ARCHITECTURE-SPINE.md</code></p>
+          </div>
+          <div class="card">
+            <h3>Next skill</h3>
+            <p><code>bmad-build</code> — story 1: Authenticated default create</p>
+          </div>
+        </div>
+      </section>
+
+    </div>
+    <div class="footer-bar">
+      <div class="dots" id="dots"></div>
+      <div>
+        <span id="counter">1 / 11</span>
+        <span class="nav">
+          <button type="button" id="prev">Prev</button>
+          <button type="button" id="next">Next</button>
+        </span>
+      </div>
+    </div>
+  </div>
+  <script>
+    const slides = [...document.querySelectorAll(".slide")];
+    const dots = document.getElementById("dots");
+    const counter = document.getElementById("counter");
+    let i = 0;
+    slides.forEach((_, n) => {
+      const d = document.createElement("button");
+      d.type = "button";
+      d.className = "dot" + (n === 0 ? " on" : "");
+      d.setAttribute("aria-label", "Go to slide " + (n + 1));
+      d.addEventListener("click", () => go(n));
+      dots.appendChild(d);
+    });
+    function go(n) {
+      i = Math.max(0, Math.min(slides.length - 1, n));
+      slides.forEach((s, k) => s.classList.toggle("active", k === i));
+      [...dots.children].forEach((d, k) => d.classList.toggle("on", k === i));
+      counter.textContent = (i + 1) + " / " + slides.length;
+    }
+    document.getElementById("prev").onclick = () => go(i - 1);
+    document.getElementById("next").onclick = () => go(i + 1);
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight" || e.key === " ") { e.preventDefault(); go(i + 1); }
+      if (e.key === "ArrowLeft") { e.preventDefault(); go(i - 1); }
+      if (e.key === "Home") go(0);
+      if (e.key === "End") go(slides.length - 1);
+    });
+  </script>
+</body>
+</html>

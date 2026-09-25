@@ -1,0 +1,33 @@
+- id: "1"
+  title: Authenticated default create
+  description: >-
+    Implement Basic Auth create of a system-default tiny URL with sanitize,
+    atomic/idempotent bind, persistence, and a response that returns the tiny URL
+    plus the original long URL (CAP-1, CAP-3, CAP-5, CAP-6 and related create constraints).
+  done_checkpoint: true
+- id: "2"
+  title: Resolve tiny URL to original destination
+  description: >-
+    Implement public resolve so opening an active tiny URL navigates to the exact
+    original long URL the merchant submitted (CAP-2).
+  done_checkpoint: true
+- id: "3"
+  title: Liveness gate before mint
+  description: >-
+    Gate create on HTTP liveness of the original long URL: 404-class fails
+    immediately; timeout/5xx retry the same probe up to 3 attempts with a 30s
+    wait each, then refuse with no store (CAP-4).
+  done_checkpoint: true
+- id: "4"
+  title: Configurable inactivity expiry
+  description: >-
+    Expire tiny URLs after a configurable inactivity period (5 minutes for
+    initial testing); successful resolve resets the window; expired URLs do not
+    return the destination (CAP-7).
+  done_checkpoint: true
+- id: "5"
+  title: Vanity create and assign
+  description: >-
+    Allow a custom/vanity short form at create, and allow assigning an available
+    vanity to an existing binding while keeping the same original long URL (CAP-8).
+  done_checkpoint: true
