@@ -9,5 +9,7 @@ public interface BindingRepository extends JpaRepository<Binding, UUID> {
 
 	Optional<Binding> findBySanitizedUrl(String sanitizedUrl);
 
+	Optional<Binding> findByShortCode(String shortCode);
+
 	boolean existsByShortCode(String shortCode);
 }

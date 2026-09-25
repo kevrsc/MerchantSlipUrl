@@ -1,6 +1,7 @@
 package com.shortyurl.web;
 
 import com.shortyurl.service.InvalidUrlException;
+import com.shortyurl.service.UrlNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -30,6 +31,13 @@ public class ApiExceptionHandler {
 	ProblemDetail handleInvalidUrl(InvalidUrlException ex) {
 		ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
 		detail.setTitle("Bad Request");
+		return detail;
+	}
+
+	@ExceptionHandler(UrlNotFoundException.class)
+	ProblemDetail handleUrlNotFound(UrlNotFoundException ex) {
+		ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+		detail.setTitle("Not Found");
 		return detail;
 	}
 }
