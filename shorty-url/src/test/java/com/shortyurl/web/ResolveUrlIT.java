@@ -62,6 +62,9 @@ class ResolveUrlIT {
 	@Value("${shortyurl.inactivity}")
 	private Duration inactivity;
 
+	@Value("${shortyurl.public-base-url}")
+	private String publicBaseUrl;
+
 	@BeforeEach
 	void cleanStore() {
 		assertThat(inactivity).isEqualTo(TEST_PROFILE_INACTIVITY);
@@ -324,6 +327,247 @@ class ResolveUrlIT {
 		}
 	}
 
+	@Test
+	void assignLiveBinding_replacesShortCodeAndOldCodeIs404() throws Exception {
+		Instant createdAt = clock.instant().minusSeconds(2);
+		Instant lastAccessedAt = clock.instant().minusSeconds(1);
+		persistBinding(SHORT_CODE, LONG_URL, LONG_URL, createdAt, lastAccessedAt);
+
+		mockMvc.perform(assignJson(LONG_URL, "summer_sale"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.tinyUrl").value(tinyUrl("summer_sale")))
+				.andExpect(jsonPath("$.originalUrl").value(LONG_URL));
+
+		assertThat(bindingRepository.findByShortCode(SHORT_CODE)).isEmpty();
+		assertThat(bindingRepository.count()).isEqualTo(1);
+		Binding updated = bindingRepository.findByShortCode("summer_sale").orElseThrow();
+		assertThat(updated.getOriginalUrl()).isEqualTo(LONG_URL);
+		assertThat(updated.getSanitizedUrl()).isEqualTo(LONG_URL);
+		assertThat(updated.getCreatedAt()).isEqualTo(createdAt);
+		assertThat(updated.getLastAccessedAt()).isEqualTo(lastAccessedAt);
+
+		mockMvc.perform(get("/" + SHORT_CODE))
+				.andExpect(status().isNotFound())
+				.andExpect(header().doesNotExist("Location"));
+
+		mockMvc.perform(get("/summer_sale"))
+				.andExpect(status().isFound())
+				.andExpect(header().string("Location", LONG_URL));
+	}
+
+	@Test
+	void assignByTinyUrl_replacesShortCode() throws Exception {
+		persistBinding(SHORT_CODE, LONG_URL, LONG_URL, clock.instant(), clock.instant());
+
+		mockMvc.perform(assignJson(tinyUrl(SHORT_CODE), "from-tiny"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.tinyUrl").value(tinyUrl("from-tiny")))
+				.andExpect(jsonPath("$.originalUrl").value(LONG_URL));
+
+		assertThat(bindingRepository.findByShortCode(SHORT_CODE)).isEmpty();
+		assertThat(bindingRepository.findByShortCode("from-tiny").orElseThrow().getOriginalUrl()).isEqualTo(LONG_URL);
+
+		mockMvc.perform(get("/" + SHORT_CODE))
+				.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void assignByEquivalentLongUrl_replacesShortCode() throws Exception {
+		String originalUrl = "https://orders.example.com/path";
+		persistBinding(SHORT_CODE, originalUrl, originalUrl, clock.instant(), null);
+
+		mockMvc.perform(assignJson("  HTTPS://ORDERS.example.com/path#frag  ", "messy-vanity"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.tinyUrl").value(tinyUrl("messy-vanity")))
+				.andExpect(jsonPath("$.originalUrl").value(originalUrl));
+
+		Binding updated = bindingRepository.findByShortCode("messy-vanity").orElseThrow();
+		assertThat(updated.getSanitizedUrl()).isEqualTo(originalUrl);
+		assertThat(updated.getCreatedAt()).isEqualTo(clock.instant());
+	}
+
+	@Test
+	void assignExpired_resetsLastAccessAndResolves() throws Exception {
+		Instant createdAt = clock.instant().minus(inactivity).minusSeconds(1);
+		Instant lastAccessedAt = clock.instant().minus(inactivity);
+		persistBinding(SHORT_CODE, LONG_URL, LONG_URL, createdAt, lastAccessedAt);
+
+		mockMvc.perform(assignJson(LONG_URL, "fresh-vanity"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.tinyUrl").value(tinyUrl("fresh-vanity")))
+				.andExpect(jsonPath("$.originalUrl").value(LONG_URL));
+
+		Binding updated = bindingRepository.findByShortCode("fresh-vanity").orElseThrow();
+		assertThat(updated.getCreatedAt()).isEqualTo(createdAt);
+		assertThat(updated.getOriginalUrl()).isEqualTo(LONG_URL);
+		assertThat(updated.getSanitizedUrl()).isEqualTo(LONG_URL);
+		assertThat(updated.getLastAccessedAt()).isEqualTo(clock.instant());
+		assertThat(bindingRepository.findByShortCode(SHORT_CODE)).isEmpty();
+
+		mockMvc.perform(get("/" + SHORT_CODE))
+				.andExpect(status().isNotFound())
+				.andExpect(header().doesNotExist("Location"));
+
+		mockMvc.perform(get("/fresh-vanity"))
+				.andExpect(status().isFound())
+				.andExpect(header().string("Location", LONG_URL));
+	}
+
+	@Test
+	void assignTakenVanity_returns409AndLeavesShortCode() throws Exception {
+		persistBinding(SHORT_CODE, LONG_URL, LONG_URL, clock.instant(), null);
+		persistBinding("taken", "https://orders.example.com/other", "https://orders.example.com/other", clock.instant(), null);
+
+		mockMvc.perform(assignJson(LONG_URL, "taken"))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.status").value(409));
+
+		assertThat(bindingRepository.count()).isEqualTo(2);
+		assertThat(bindingRepository.findByShortCode(SHORT_CODE).orElseThrow().getOriginalUrl()).isEqualTo(LONG_URL);
+		assertThat(bindingRepository.findByShortCode("taken").orElseThrow().getOriginalUrl())
+				.isEqualTo("https://orders.example.com/other");
+	}
+
+	@Test
+	void assignUnknownUrl_returns404AndLeavesStore() throws Exception {
+		persistBinding(SHORT_CODE, LONG_URL, LONG_URL, clock.instant(), null);
+
+		mockMvc.perform(assignJson("https://orders.example.com/missing", "free-code"))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.status").value(404));
+
+		mockMvc.perform(assignJson(tinyUrl("missing-code"), "free-code"))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.status").value(404));
+
+		assertThat(bindingRepository.count()).isEqualTo(1);
+		assertThat(bindingRepository.findByShortCode(SHORT_CODE)).isPresent();
+		assertThat(bindingRepository.findByShortCode("free-code")).isEmpty();
+	}
+
+	@Test
+	void assignSameCode_changesNoFields() throws Exception {
+		Instant anchor = clock.instant().minus(inactivity);
+		Binding seeded = persistBinding(SHORT_CODE, LONG_URL, LONG_URL, anchor, anchor);
+
+		mockMvc.perform(assignJson(LONG_URL, SHORT_CODE))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.tinyUrl").value(tinyUrl(SHORT_CODE)))
+				.andExpect(jsonPath("$.originalUrl").value(LONG_URL));
+
+		assertThat(bindingRepository.count()).isEqualTo(1);
+		Binding stored = bindingRepository.findByShortCode(SHORT_CODE).orElseThrow();
+		assertThat(stored.getId()).isEqualTo(seeded.getId());
+		assertThat(stored.getOriginalUrl()).isEqualTo(LONG_URL);
+		assertThat(stored.getSanitizedUrl()).isEqualTo(LONG_URL);
+		assertThat(stored.getCreatedAt()).isEqualTo(anchor);
+		assertThat(stored.getLastAccessedAt()).isEqualTo(anchor);
+
+		mockMvc.perform(get("/" + SHORT_CODE))
+				.andExpect(status().isGone());
+	}
+
+	@Test
+	void assignInvalidVanity_returns400AndLeavesStore() throws Exception {
+		persistBinding(SHORT_CODE, LONG_URL, LONG_URL, clock.instant(), null);
+
+		mockMvc.perform(assignJson(LONG_URL, "api"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.status").value(400));
+
+		assertThat(bindingRepository.count()).isEqualTo(1);
+		assertThat(bindingRepository.findByShortCode(SHORT_CODE)).isPresent();
+	}
+
+	@Test
+	void assignWithoutAuth_returns401AndLeavesStore() throws Exception {
+		persistBinding(SHORT_CODE, LONG_URL, LONG_URL, clock.instant(), null);
+
+		mockMvc.perform(post("/api/v1/urls/vanity")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"url":"%s","vanity":"free-code"}
+								""".formatted(LONG_URL)))
+				.andExpect(status().isUnauthorized());
+
+		assertThat(bindingRepository.count()).isEqualTo(1);
+		assertThat(bindingRepository.findByShortCode(SHORT_CODE)).isPresent();
+		assertThat(bindingRepository.findByShortCode("free-code")).isEmpty();
+	}
+
+	@Test
+	void assignLongUrlUnderPublicBase_withSlash_replacesShortCode() throws Exception {
+		String originalUrl = tinyUrl("docs/guide");
+		persistBinding(SHORT_CODE, originalUrl, urlSanitizer.sanitize(originalUrl), clock.instant(), null);
+
+		mockMvc.perform(assignJson(originalUrl, "guide-vanity"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.tinyUrl").value(tinyUrl("guide-vanity")))
+				.andExpect(jsonPath("$.originalUrl").value(originalUrl));
+
+		assertThat(bindingRepository.findByShortCode(SHORT_CODE)).isEmpty();
+		assertThat(bindingRepository.findByShortCode("guide-vanity")).isPresent();
+	}
+
+	@Test
+	void expiredCreate_withOwnVanity_returnsSameTinyUrlAndSetsLastAccessedAt() throws Exception {
+		try (MockWebServer server = new MockWebServer()) {
+			server.start();
+			server.enqueue(new MockResponse().setResponseCode(200).setBody("ok"));
+			String liveUrl = server.url("/checkout?orderId=8&token=own").toString();
+			Instant expiredAt = clock.instant().minus(inactivity);
+			persistBinding(SHORT_CODE, liveUrl, urlSanitizer.sanitize(liveUrl), expiredAt, expiredAt);
+
+			MvcResult createResult = mockMvc.perform(post("/api/v1/urls")
+							.with(SecurityMockMvcRequestPostProcessors.httpBasic("merchant", "merchant"))
+							.contentType(MediaType.APPLICATION_JSON)
+							.content("""
+									{"url":"%s","vanity":"%s"}
+									""".formatted(liveUrl, SHORT_CODE)))
+					.andExpect(status().isOk())
+					.andReturn();
+
+			assertThat(readTinyUrl(createResult)).endsWith("/" + SHORT_CODE);
+			assertThat(bindingRepository.count()).isEqualTo(1);
+			Binding reactivated = bindingRepository.findByShortCode(SHORT_CODE).orElseThrow();
+			assertThat(reactivated.getLastAccessedAt()).isEqualTo(clock.instant());
+			assertThat(reactivated.getCreatedAt()).isEqualTo(expiredAt);
+		}
+	}
+
+	@Test
+	void expiredCreate_withDifferentVanity_keepsShortCodeAndReactivates() throws Exception {
+		try (MockWebServer server = new MockWebServer()) {
+			server.start();
+			server.enqueue(new MockResponse().setResponseCode(200).setBody("ok"));
+			String liveUrl = server.url("/checkout?orderId=42&token=abc").toString();
+			Instant expiredAt = clock.instant().minus(inactivity);
+			persistBinding(SHORT_CODE, liveUrl, urlSanitizer.sanitize(liveUrl), expiredAt, expiredAt);
+
+			MvcResult createResult = mockMvc.perform(post("/api/v1/urls")
+							.with(SecurityMockMvcRequestPostProcessors.httpBasic("merchant", "merchant"))
+							.contentType(MediaType.APPLICATION_JSON)
+							.content("""
+									{"url":"%s","vanity":"new-vanity"}
+									""".formatted(liveUrl)))
+					.andExpect(status().isOk())
+					.andReturn();
+
+			assertThat(readTinyUrl(createResult)).endsWith("/" + SHORT_CODE);
+			assertThat(bindingRepository.count()).isEqualTo(1);
+			assertThat(bindingRepository.findByShortCode("new-vanity")).isEmpty();
+
+			Binding reactivated = bindingRepository.findByShortCode(SHORT_CODE).orElseThrow();
+			assertThat(reactivated.getCreatedAt()).isEqualTo(expiredAt);
+			assertThat(reactivated.getLastAccessedAt()).isEqualTo(clock.instant());
+			assertThat(reactivated.getOriginalUrl()).isEqualTo(liveUrl);
+
+			mockMvc.perform(get("/" + SHORT_CODE))
+					.andExpect(status().isFound())
+					.andExpect(header().string("Location", liveUrl));
+		}
+	}
+
 	private void createThenResolve(String liveUrl) throws Exception {
 		MvcResult createResult = mockMvc.perform(post("/api/v1/urls")
 						.with(SecurityMockMvcRequestPostProcessors.httpBasic("merchant", "merchant"))
@@ -362,6 +606,20 @@ class ResolveUrlIT {
 
 	private static String readTinyUrl(MvcResult result) throws Exception {
 		return JsonPath.read(result.getResponse().getContentAsString(), "$.tinyUrl");
+	}
+
+	private org.springframework.test.web.servlet.RequestBuilder assignJson(String url, String vanity) {
+		return post("/api/v1/urls/vanity")
+				.with(SecurityMockMvcRequestPostProcessors.httpBasic("merchant", "merchant"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{"url":"%s","vanity":"%s"}
+						""".formatted(url, vanity));
+	}
+
+	private String tinyUrl(String shortCode) {
+		String base = publicBaseUrl.endsWith("/") ? publicBaseUrl : publicBaseUrl + "/";
+		return base + shortCode;
 	}
 
 	@TestConfiguration

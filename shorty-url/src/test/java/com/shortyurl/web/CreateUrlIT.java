@@ -10,6 +10,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -25,11 +27,14 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -383,6 +388,210 @@ class CreateUrlIT {
 		assertThat(server.getRequestCount()).isEqualTo(1);
 	}
 
+	@Test
+	void omitVanity_returnsOpaqueShortCode() throws Exception {
+		enqueue(200);
+
+		MvcResult result = mockMvc.perform(postJson(longUrl))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.originalUrl").value(longUrl))
+				.andReturn();
+
+		String tinyUrl = readTinyUrl(result);
+		assertThat(shortCodeOf(tinyUrl)).matches("[A-Za-z0-9_-]{10}");
+		assertThat(tinyUrl).doesNotContain("orderId");
+		assertThat(tinyUrl).doesNotContain(URI.create(longUrl).getHost());
+	}
+
+	@Test
+	void blankVanity_returnsOpaqueShortCode() throws Exception {
+		enqueue(200);
+
+		MvcResult result = mockMvc.perform(postVanity(longUrl, "   "))
+				.andExpect(status().isCreated())
+				.andReturn();
+
+		assertThat(shortCodeOf(readTinyUrl(result))).matches("[A-Za-z0-9_-]{10}");
+	}
+
+	@Test
+	void vanityCreate_storesVanityAndResolves() throws Exception {
+		enqueue(200);
+		String vanity = "my_sale-1";
+
+		MvcResult result = mockMvc.perform(postVanity(longUrl, vanity))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.originalUrl").value(longUrl))
+				.andReturn();
+
+		assertThat(readTinyUrl(result)).isEqualTo("http://localhost:8080/" + vanity);
+		assertThat(bindingRepository.count()).isEqualTo(1);
+		assertThat(server.getRequestCount()).isEqualTo(1);
+		assertThat(bindingRepository.findByShortCode(vanity).orElseThrow().getOriginalUrl()).isEqualTo(longUrl);
+
+		mockMvc.perform(get("/" + vanity))
+				.andExpect(status().isFound())
+				.andExpect(header().string("Location", longUrl));
+	}
+
+	@Test
+	void vanityDifferentCaseFromReservedWord_isStored() throws Exception {
+		enqueue(200);
+
+		mockMvc.perform(postVanity(longUrl, "API"))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.tinyUrl").value("http://localhost:8080/API"));
+
+		assertThat(bindingRepository.findByShortCode("API")).isPresent();
+		assertThat(bindingRepository.findByShortCode("api")).isEmpty();
+	}
+
+	@Test
+	void vanityAtMaxLength_isStoredAndResolves() throws Exception {
+		enqueue(200);
+		String vanity = "a".repeat(64);
+
+		MvcResult result = mockMvc.perform(postVanity(longUrl, vanity))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.originalUrl").value(longUrl))
+				.andReturn();
+
+		assertThat(readTinyUrl(result)).endsWith("/" + vanity);
+		mockMvc.perform(get("/" + vanity))
+				.andExpect(status().isFound())
+				.andExpect(header().string("Location", longUrl));
+	}
+
+	@Test
+	void vanityTaken_returns409AndDoesNotProbe() throws Exception {
+		seedBinding("taken-code", otherUrl);
+
+		mockMvc.perform(postVanity(longUrl, "taken-code"))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.status").value(409))
+				.andExpect(jsonPath("$.title").value("Conflict"));
+
+		assertThat(bindingRepository.count()).isEqualTo(1);
+		assertThat(bindingRepository.findByShortCode("taken-code").orElseThrow().getOriginalUrl()).isEqualTo(otherUrl);
+		assertThat(server.getRequestCount()).isZero();
+	}
+
+	@Test
+	void existingLongUrl_doesNotApplyVanity() throws Exception {
+		enqueue(200);
+		enqueue(200);
+		MvcResult first = mockMvc.perform(postJson(longUrl))
+				.andExpect(status().isCreated())
+				.andReturn();
+
+		String tinyUrl = readTinyUrl(first);
+		String shortCode = shortCodeOf(tinyUrl);
+		Binding stored = bindingRepository.findByShortCode(shortCode).orElseThrow();
+		Instant createdAt = stored.getCreatedAt();
+
+		mockMvc.perform(postVanity(longUrl, "my-vanity"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.tinyUrl").value(tinyUrl))
+				.andExpect(jsonPath("$.originalUrl").value(longUrl));
+
+		assertThat(bindingRepository.count()).isEqualTo(1);
+		Binding again = bindingRepository.findByShortCode(shortCode).orElseThrow();
+		assertThat(again.getShortCode()).isEqualTo(shortCode);
+		assertThat(again.getCreatedAt()).isEqualTo(createdAt);
+		assertThat(again.getLastAccessedAt()).isNull();
+		assertThat(bindingRepository.findByShortCode("my-vanity")).isEmpty();
+		assertThat(server.getRequestCount()).isEqualTo(2);
+	}
+
+	@Test
+	void existingLongUrl_withTakenVanity_returns409AndDoesNotProbeAgain() throws Exception {
+		enqueue(200);
+		enqueue(200);
+		MvcResult first = mockMvc.perform(postJson(longUrl))
+				.andExpect(status().isCreated())
+				.andReturn();
+		String tinyUrl = readTinyUrl(first);
+
+		mockMvc.perform(postVanity(longUrl, "other-vanity"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.tinyUrl").value(tinyUrl));
+
+		assertThat(bindingRepository.count()).isEqualTo(1);
+		assertThat(bindingRepository.findByShortCode(shortCodeOf(tinyUrl))).isPresent();
+		assertThat(bindingRepository.findByShortCode("other-vanity")).isEmpty();
+	}
+
+	@Test
+	void existingLongUrl_withItsOwnVanity_returnsSameTinyUrl() throws Exception {
+		enqueue(200);
+		enqueue(200);
+		MvcResult first = mockMvc.perform(postVanity(longUrl, "my_sale-1"))
+				.andExpect(status().isCreated())
+				.andReturn();
+		String tinyUrl = readTinyUrl(first);
+
+		mockMvc.perform(postVanity(longUrl, "my_sale-1"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.tinyUrl").value(tinyUrl));
+
+		assertThat(bindingRepository.count()).isEqualTo(1);
+		assertThat(bindingRepository.findByShortCode("my_sale-1")).isPresent();
+	}
+
+	@Test
+	void vanityCreate_destination404_returns502AndStoresNothing() throws Exception {
+		enqueue(404);
+
+		mockMvc.perform(postVanity(longUrl, "my_sale-1"))
+				.andExpect(status().isBadGateway())
+				.andExpect(jsonPath("$.status").value(502));
+
+		assertThat(bindingRepository.count()).isZero();
+		assertThat(bindingRepository.findByShortCode("my_sale-1")).isEmpty();
+		assertThat(server.getRequestCount()).isEqualTo(1);
+	}
+
+	@ParameterizedTest
+	@MethodSource("invalidVanities")
+	void badVanity_returns400AndDoesNotProbe(String vanity) throws Exception {
+		enqueue(200);
+
+		mockMvc.perform(postVanity(longUrl, vanity))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.status").value(400))
+				.andExpect(jsonPath("$.title").value("Bad Request"));
+
+		assertThat(bindingRepository.count()).isZero();
+		assertThat(server.getRequestCount()).isZero();
+	}
+
+	@Test
+	void vanityCreateWithoutAuth_returns401AndStoresNothing() throws Exception {
+		mockMvc.perform(post("/api/v1/urls")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"url":"%s","vanity":"open-vanity"}
+								""".formatted(longUrl)))
+				.andExpect(status().isUnauthorized());
+
+		assertThat(bindingRepository.count()).isZero();
+		assertThat(bindingRepository.findByShortCode("open-vanity")).isEmpty();
+		assertThat(server.getRequestCount()).isZero();
+	}
+
+	private static Stream<String> invalidVanities() {
+		return Stream.of("api", "error", "bad/code", "a".repeat(65));
+	}
+
+	private void seedBinding(String shortCode, String url) {
+		Binding binding = new Binding();
+		binding.setShortCode(shortCode);
+		binding.setOriginalUrl(url);
+		binding.setSanitizedUrl(url);
+		binding.setCreatedAt(Instant.now());
+		bindingRepository.saveAndFlush(binding);
+	}
+
 	private void enqueue(int status) {
 		server.enqueue(new MockResponse().setResponseCode(status).setBody("ok"));
 	}
@@ -400,6 +609,15 @@ class CreateUrlIT {
 				""".formatted(url);
 	}
 
+	private org.springframework.test.web.servlet.RequestBuilder postVanity(String url, String vanity) {
+		return post("/api/v1/urls")
+				.with(SecurityMockMvcRequestPostProcessors.httpBasic("merchant", "merchant"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{"url":"%s","vanity":"%s"}
+						""".formatted(url, vanity));
+	}
+
 	private static byte[] body(int size) {
 		byte[] bytes = new byte[size];
 		Arrays.fill(bytes, (byte) 'x');
@@ -411,5 +629,9 @@ class CreateUrlIT {
 		int start = body.indexOf("\"tinyUrl\":\"") + "\"tinyUrl\":\"".length();
 		int end = body.indexOf('"', start);
 		return body.substring(start, end);
+	}
+
+	private static String shortCodeOf(String tinyUrl) {
+		return tinyUrl.substring(tinyUrl.lastIndexOf('/') + 1);
 	}
 }

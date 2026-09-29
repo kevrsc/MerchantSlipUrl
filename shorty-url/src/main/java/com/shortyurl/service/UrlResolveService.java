@@ -29,7 +29,7 @@ public class UrlResolveService {
 	@Transactional
 	public String resolve(String shortCode) {
 		Binding binding = bindingRepository.findByShortCode(shortCode)
-				.orElseThrow(() -> new UrlNotFoundException(shortCode));
+				.orElseThrow(() -> UrlNotFoundException.forShortCode(shortCode));
 		Instant now = clock.instant();
 		if (Inactivity.isExpired(binding.getCreatedAt(), binding.getLastAccessedAt(), now, inactivity)) {
 			throw new UrlExpiredException(shortCode);

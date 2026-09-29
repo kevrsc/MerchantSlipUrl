@@ -27,3 +27,7 @@
 - source_spec: `_bmad-output/specs/spec-tiny-url-service/stories/4-configurable-inactivity-expiry.md`
   summary: Cover reactivation on the sanitized-URL unique-constraint catch, not only the find-then-reuse path
   evidence: `UrlCreateService.persistNewBinding` now calls `reuseExisting` after `DataIntegrityViolationException` when the sanitized URL already exists. No test raises that exception, so restoring “return the row unchanged” would still pass. The branch runs only after a lost insert race; find-then-reuse reactivation is already asserted.
+
+- source_spec: `_bmad-output/specs/spec-tiny-url-service/stories/5-vanity-create-and-assign.md`
+  summary: Cover a lost short-code unique-constraint race on vanity create and assign
+  evidence: `persistVanity` and `UrlAssignService.assign` map `DataIntegrityViolationException` to 409 after the pre-check misses. No test raises that exception, so regenerating a supplied vanity or dropping the assign catch would still pass. The non-racing 409 is already asserted in `CreateUrlIT` and `ResolveUrlIT`.

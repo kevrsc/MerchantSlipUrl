@@ -1,9 +1,11 @@
 package com.shortyurl.web;
 
 import com.shortyurl.service.InvalidUrlException;
+import com.shortyurl.service.InvalidVanityException;
 import com.shortyurl.service.LivenessFailedException;
 import com.shortyurl.service.UrlExpiredException;
 import com.shortyurl.service.UrlNotFoundException;
+import com.shortyurl.service.VanityTakenException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -33,6 +35,20 @@ public class ApiExceptionHandler {
 	ProblemDetail handleInvalidUrl(InvalidUrlException ex) {
 		ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
 		detail.setTitle("Bad Request");
+		return detail;
+	}
+
+	@ExceptionHandler(InvalidVanityException.class)
+	ProblemDetail handleInvalidVanity(InvalidVanityException ex) {
+		ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+		detail.setTitle("Bad Request");
+		return detail;
+	}
+
+	@ExceptionHandler(VanityTakenException.class)
+	ProblemDetail handleVanityTaken(VanityTakenException ex) {
+		ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+		detail.setTitle("Conflict");
 		return detail;
 	}
 

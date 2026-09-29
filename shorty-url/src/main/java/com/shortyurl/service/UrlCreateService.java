@@ -42,14 +42,24 @@ public class UrlCreateService {
 		this.inactivity = inactivity;
 	}
 
-	public CreateUrlResult create(String rawUrl) {
+	public CreateUrlResult create(String rawUrl, String vanity) {
 		String originalUrl = rawUrl.trim();
 		String sanitizedUrl = urlSanitizer.sanitize(originalUrl);
+		String requestedVanity = Vanity.optional(vanity);
+		Optional<Binding> existing = bindingRepository.findBySanitizedUrl(sanitizedUrl);
+		if (existing.isEmpty()
+				&& requestedVanity != null
+				&& bindingRepository.existsByShortCode(requestedVanity)) {
+			throw new VanityTakenException(requestedVanity);
+		}
+
 		urlLivenessChecker.check(originalUrl);
 
-		return bindingRepository.findBySanitizedUrl(sanitizedUrl)
+		return existing
 				.map(this::reuseExisting)
-				.orElseGet(() -> persistNewBinding(originalUrl, sanitizedUrl));
+				.orElseGet(() -> requestedVanity == null
+						? persistNewBinding(originalUrl, sanitizedUrl)
+						: persistVanity(originalUrl, sanitizedUrl, requestedVanity));
 	}
 
 	private CreateUrlResult reuseExisting(Binding existing) {
@@ -98,5 +108,26 @@ public class UrlCreateService {
 			}
 		}
 		throw new IllegalStateException("Unable to allocate a unique short code");
+	}
+
+	private CreateUrlResult persistVanity(String originalUrl, String sanitizedUrl, String vanity) {
+		try {
+			Binding saved = transactionTemplate.execute(status -> {
+				Binding binding = new Binding();
+				binding.setOriginalUrl(originalUrl);
+				binding.setSanitizedUrl(sanitizedUrl);
+				binding.setShortCode(vanity);
+				binding.setCreatedAt(clock.instant());
+				return bindingRepository.saveAndFlush(binding);
+			});
+			return new CreateUrlResult(saved, true);
+		}
+		catch (DataIntegrityViolationException ex) {
+			Optional<Binding> existing = bindingRepository.findBySanitizedUrl(sanitizedUrl);
+			if (existing.isPresent()) {
+				return reuseExisting(existing.get());
+			}
+			throw new VanityTakenException(vanity);
+		}
 	}
 }
