@@ -23,6 +23,7 @@ import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -210,6 +211,11 @@ class CreateUrlIT {
 				.andReturn();
 
 		String firstTinyUrl = readTinyUrl(first);
+		Binding stored = bindingRepository.findAll().getFirst();
+		UUID id = stored.getId();
+		Instant createdAt = stored.getCreatedAt();
+		Instant lastAccessedAt = stored.getLastAccessedAt();
+		String shortCode = stored.getShortCode();
 
 		mockMvc.perform(postJson(longUrl))
 				.andExpect(status().isOk())
@@ -217,6 +223,10 @@ class CreateUrlIT {
 				.andExpect(jsonPath("$.originalUrl").value(longUrl));
 
 		assertThat(bindingRepository.count()).isEqualTo(1);
+		Binding again = bindingRepository.findById(id).orElseThrow();
+		assertThat(again.getCreatedAt()).isEqualTo(createdAt);
+		assertThat(again.getLastAccessedAt()).isEqualTo(lastAccessedAt);
+		assertThat(again.getShortCode()).isEqualTo(shortCode);
 		assertThat(server.getRequestCount()).isEqualTo(2);
 	}
 

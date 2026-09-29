@@ -2,6 +2,7 @@ package com.shortyurl.web;
 
 import com.shortyurl.service.InvalidUrlException;
 import com.shortyurl.service.LivenessFailedException;
+import com.shortyurl.service.UrlExpiredException;
 import com.shortyurl.service.UrlNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -39,6 +40,13 @@ public class ApiExceptionHandler {
 	ProblemDetail handleUrlNotFound(UrlNotFoundException ex) {
 		ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
 		detail.setTitle("Not Found");
+		return detail;
+	}
+
+	@ExceptionHandler(UrlExpiredException.class)
+	ProblemDetail handleUrlExpired(UrlExpiredException ex) {
+		ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.GONE, ex.getMessage());
+		detail.setTitle("Gone");
 		return detail;
 	}
 

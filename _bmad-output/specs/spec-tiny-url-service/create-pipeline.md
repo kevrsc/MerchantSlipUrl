@@ -9,7 +9,7 @@ Ordered steps for minting a tiny URL. Each step must complete before the next. N
    - Client errors such as 404: fail immediately; refuse and store nothing.
    - Timeouts and 5xx: retry the **same** long-URL probe up to **3** attempts total; if still failing after those attempts, refuse and store nothing.
    - HTTP 2xx or 3xx on that URL: proceed. Reaching the body limit does not fail a 2xx or 3xx. Do not request the redirect target.
-5. **Lookup** by sanitized long URL. If a binding exists, return that tiny URL and stop; write nothing. (Vanity upgrade of an existing binding is a separate path below.)
+5. **Lookup** by sanitized long URL. If a binding exists and it is still inside the inactivity window, return that tiny URL and stop; write nothing. If that binding is expired, keep the row, return the same tiny URL, and set last access to now so the window starts again. (Vanity upgrade of an existing binding is a separate path below.)
 6. **Atomic bind** a new unique tiny URL (system default, or the requested available vanity) to the **original** merchant-pasted long URL string (not the post-redirect location). Write both together or neither. Concurrent creates for different destinations must not collide onto one tiny URL; concurrent creates for the same sanitized long URL must converge on one binding. A vanity already bound to a different destination is refused.
 
 ## Vanity assign (existing binding)

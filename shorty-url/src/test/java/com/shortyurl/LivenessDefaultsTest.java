@@ -22,5 +22,7 @@ class LivenessDefaultsTest {
 		assertThat(environment.getProperty("shortyurl.liveness.timeout")).isEqualTo("30s");
 		assertThat(environment.getProperty("shortyurl.liveness.max-body-bytes")).isEqualTo("65536");
 		assertThat(environment.getProperty("shortyurl.liveness.timeout", Duration.class)).isEqualTo(Duration.ofSeconds(30));
+		assertThat(environment.getProperty("shortyurl.inactivity")).isEqualTo("5m");
+		assertThat(environment.getProperty("shortyurl.inactivity", Duration.class)).isEqualTo(Duration.ofMinutes(5));
 	}
 }
