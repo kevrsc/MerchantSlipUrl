@@ -103,6 +103,26 @@ context:
 - Given a timeout or 5xx followed by 2xx within 3 attempts, when create runs, then a binding is stored
 - Given liveness failure, when create is attempted, then no new binding is stored
 
+### Review Findings
+
+- [x] [Review][Patch] A live create returns the short code from before the probe [shorty-url/src/main/java/com/shortyurl/service/UrlCreateService.java:65]
+- [x] [Review][Patch] A failed probe of an expired binding is not shown to leave last access unchanged [shorty-url/src/main/java/com/shortyurl/service/UrlCreateService.java:56]
+- [x] [Review][Patch] A 4xx response with a null body is not shown to fail once [shorty-url/src/main/java/com/shortyurl/service/UrlLivenessChecker.java:105]
+- [x] [Review][Patch] An I/O error opening a non-4xx body is not shown to retry [shorty-url/src/main/java/com/shortyurl/service/UrlLivenessChecker.java:99]
+- [x] [Review][Defer] Unique-constraint loss on insert is untested [shorty-url/src/main/java/com/shortyurl/service/UrlCreateService.java:102] — deferred: the non-racing 409 and the successful insert are already asserted; forcing the constraint loss needs a concurrent insert
+
+#### Rejected
+
+- false — An original URL under the 2048-character cap does not fail the insert when sanitize drops a fragment. The stored original fits the column, and a longer sanitized form is already rejected.
+- false — A taken vanity is refused before the probe when no binding exists. Story 5 requires that 409 before liveness.
+- false — A stall after response headers is not left unbounded. `stalledBody_failsWithinAttemptTimeoutAndRetries` finishes three attempts inside the timeout after headers and an empty body.
+- false — A later paste whose raw URL 404s does not return the existing tiny URL. Story 3 requires a dead destination to be refused.
+- low — A URL with userinfo becomes 502 without a request. Order URLs use query tokens, and sending userinfo would be new client behavior.
+- low — The liveness `HttpClient` is not closed on shutdown. One client lives with the process; a shutdown hook is extra lifecycle.
+- low — A 502 does not include the upstream status. The spec requires 502, which the handler already returns.
+- low — Create tests do not assert the probe query string. The checker requests `URI.create(originalUrl)`, and the pasted-path test already checks the path that was sent.
+- low — Connect timeout and request timeout can add. Everyday probes do not spend both budgets, and one combined deadline is new control flow.
+
 ## Implementation Notes
 
 - First implementation was reverted. Human decision: do not follow redirects (3xx on the pasted URL is success); read at most 64 KiB and do not fail a 2xx or 3xx for size. Prior review triage was split to `deferred-work.md`.

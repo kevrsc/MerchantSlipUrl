@@ -63,8 +63,9 @@ public class UrlCreateService {
 	}
 
 	private CreateUrlResult reuseExisting(Binding existing) {
-		if (!isExpired(existing)) {
-			return new CreateUrlResult(existing, false);
+		Binding current = bindingRepository.findById(existing.getId()).orElseThrow();
+		if (!isExpired(current)) {
+			return new CreateUrlResult(current, false);
 		}
 		Binding reactivated = transactionTemplate.execute(status -> {
 			Binding binding = bindingRepository.findById(existing.getId()).orElseThrow();

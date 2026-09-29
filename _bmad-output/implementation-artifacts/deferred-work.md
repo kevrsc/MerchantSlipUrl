@@ -32,6 +32,10 @@
   summary: Cover a lost short-code unique-constraint race on vanity create and assign
   evidence: `persistVanity` and `UrlAssignService.assign` map `DataIntegrityViolationException` to 409 after the pre-check misses. No test raises that exception, so regenerating a supplied vanity or dropping the assign catch would still pass. The non-racing 409 is already asserted in `CreateUrlIT` and `ResolveUrlIT`.
 
+## Deferred from: code review of 3-liveness-gate-before-mint.md (2026-09-29)
+
+- Unique-constraint loss on insert is untested. `persistNewBinding` retries a generated code after `DataIntegrityViolationException`, and `persistVanity` maps a remaining violation to 409. No test raises that exception. The non-racing 409 and the successful insert are already asserted. Same gap as the story 1 and story 5 deferrals.
+
 ## Deferred from: code review of 5-vanity-create-and-assign.md (2026-09-29)
 
 - Lost unique-constraint races are not raised in tests. `persistVanity` and `UrlAssignService.assign` map a lost `uk_bindings_short_code` race to 409, and `persistNewBinding` retries a generated code. No test raises `DataIntegrityViolationException` after the pre-check. The non-racing 409 is already asserted. Same gap as the story 5 deferral above.

@@ -17,6 +17,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -113,6 +114,22 @@ class UrlLivenessCheckerTest {
 	}
 
 	@Test
+	void clientErrorWithNullBody_failsOnceWithoutRetry() throws Exception {
+		try (MockWebServer server = new MockWebServer()) {
+			server.start();
+			server.enqueue(new MockResponse().setResponseCode(404));
+			server.enqueue(new MockResponse().setResponseCode(200).setBody("later"));
+			RestClient.Builder builder = RestClient.builder().requestInterceptor((request, body, execution) ->
+					new NullBodyResponse(execution.execute(request, body)));
+			String url = server.url("/missing").toString();
+
+			assertThatThrownBy(() -> new UrlLivenessChecker(builder, 3, Duration.ofMillis(500), 128).check(url))
+					.isInstanceOf(LivenessFailedException.class);
+			assertThat(server.getRequestCount()).isEqualTo(1);
+		}
+	}
+
+	@Test
 	void clientErrorWhenOpeningBodyFails_doesNotRetryIntoLaterSuccess() throws Exception {
 		try (MockWebServer server = new MockWebServer()) {
 			server.start();
@@ -130,6 +147,27 @@ class UrlLivenessCheckerTest {
 			assertThatThrownBy(() -> new UrlLivenessChecker(builder, 3, Duration.ofMillis(500), 128).check(url))
 					.isInstanceOf(LivenessFailedException.class);
 			assertThat(server.getRequestCount()).isEqualTo(1);
+		}
+	}
+
+	@Test
+	void nonClientErrorWhenOpeningBodyFails_retriesAndSucceeds() throws Exception {
+		try (MockWebServer server = new MockWebServer()) {
+			server.start();
+			server.enqueue(new MockResponse().setResponseCode(200).setBody("first"));
+			server.enqueue(new MockResponse().setResponseCode(200).setBody("second"));
+			AtomicInteger opened = new AtomicInteger();
+			RestClient.Builder builder = RestClient.builder().requestInterceptor((request, body, execution) -> {
+				ClientHttpResponse response = execution.execute(request, body);
+				if (opened.incrementAndGet() == 1) {
+					return new BodyOpenFailureResponse(response);
+				}
+				return response;
+			});
+
+			new UrlLivenessChecker(builder, 3, Duration.ofMillis(500), 128)
+					.check(server.url("/live").toString());
+			assertThat(server.getRequestCount()).isEqualTo(2);
 		}
 	}
 

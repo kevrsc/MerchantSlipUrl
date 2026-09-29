@@ -89,6 +89,18 @@ context:
 - Given the configured period is shortened below a binding’s age, when that code is resolved, then resolve refuses
 - Given an unknown code, when it is resolved, then the response is still 404
 
+### Review Findings
+
+- [x] [Review][Patch] Assign expiry is only tested when both timestamps agree [shorty-url/src/main/java/com/shortyurl/service/UrlAssignService.java:57]
+
+#### Rejected
+
+- low — Successful resolve does not read `createdAt` back. Resolve only writes `lastAccessedAt`, and after that write `createdAt` is not the expiry anchor. The 410 tests already keep `createdAt`.
+- low — `assignByTinyUrl` and `assignByEquivalentLongUrl` do not re-read every timestamp. The shared assign expiry block is what the timestamp-pair tests cover.
+- low — The never-accessed 410 case sits on the period boundary, and the inside-window cases use a one-second margin. Equality is already expired (`now` is not before the anchor plus the period), which is the boundary that matters.
+- low — `ResolveUrlShorterPeriodIT` does not move `MutableClock`. The row is already older than 1s and younger than the 5s profile, so the test locks the shorter period. The clock advance is locked in `ResolveUrlIT`.
+- false — `Inactivity.isExpired` does not 500 on a normal resolve. `createdAt` is non-null on every insert, and a null last access uses that timestamp.
+
 ## Implementation Notes
 
 - Resolve checks inactivity in `UrlResolveService` before writing `lastAccessedAt`. The anchor is `lastAccessedAt` when set, otherwise `createdAt`. The period is `shortyurl.inactivity` (`5m` by default; the test profile uses `5s`). Time comes from an injected `Clock`. An expired code throws `UrlExpiredException`, which `ApiExceptionHandler` maps to ProblemDetail 410. The resolve controller stays a redirect adapter.

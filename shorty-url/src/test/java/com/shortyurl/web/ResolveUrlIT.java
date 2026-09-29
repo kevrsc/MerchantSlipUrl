@@ -244,6 +244,37 @@ class ResolveUrlIT {
 	}
 
 	@Test
+	void expiredCreate_whenProbeFails_leavesLastAccessedAt() throws Exception {
+		try (MockWebServer server = new MockWebServer()) {
+			server.start();
+			server.enqueue(new MockResponse().setResponseCode(404).setBody("missing"));
+			String liveUrl = server.url("/checkout?orderId=42&token=abc").toString();
+			Instant expiredAt = clock.instant().minus(inactivity);
+			persistBinding(
+					SHORT_CODE,
+					liveUrl,
+					urlSanitizer.sanitize(liveUrl),
+					expiredAt,
+					expiredAt);
+
+			mockMvc.perform(post("/api/v1/urls")
+							.with(SecurityMockMvcRequestPostProcessors.httpBasic("merchant", "merchant"))
+							.contentType(MediaType.APPLICATION_JSON)
+							.content("""
+									{"url":"%s"}
+									""".formatted(liveUrl)))
+					.andExpect(status().isBadGateway())
+					.andExpect(jsonPath("$.status").value(502));
+
+			assertThat(server.getRequestCount()).isEqualTo(1);
+			assertThat(bindingRepository.count()).isEqualTo(1);
+			Binding stored = bindingRepository.findByShortCode(SHORT_CODE).orElseThrow();
+			assertThat(stored.getLastAccessedAt()).isEqualTo(expiredAt);
+			assertThat(stored.getCreatedAt()).isEqualTo(expiredAt);
+		}
+	}
+
+	@Test
 	void liveCreate_writesNothing() throws Exception {
 		try (MockWebServer server = new MockWebServer()) {
 			server.start();
@@ -409,6 +440,48 @@ class ResolveUrlIT {
 				.andExpect(header().doesNotExist("Location"));
 
 		mockMvc.perform(get("/fresh-vanity"))
+				.andExpect(status().isFound())
+				.andExpect(header().string("Location", LONG_URL));
+	}
+
+	@Test
+	void assignRecentAccess_leavesLastAccessedAtWhenCreatedAtIsOutsidePeriod() throws Exception {
+		Instant createdAt = clock.instant().minus(inactivity);
+		Instant lastAccessedAt = clock.instant().minus(inactivity).plusSeconds(1);
+		persistBinding(SHORT_CODE, LONG_URL, LONG_URL, createdAt, lastAccessedAt);
+
+		mockMvc.perform(assignJson(LONG_URL, "still-live"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.tinyUrl").value(tinyUrl("still-live")))
+				.andExpect(jsonPath("$.originalUrl").value(LONG_URL));
+
+		assertThat(bindingRepository.findByShortCode(SHORT_CODE)).isEmpty();
+		Binding updated = bindingRepository.findByShortCode("still-live").orElseThrow();
+		assertThat(updated.getCreatedAt()).isEqualTo(createdAt);
+		assertThat(updated.getLastAccessedAt()).isEqualTo(lastAccessedAt);
+
+		mockMvc.perform(get("/still-live"))
+				.andExpect(status().isFound())
+				.andExpect(header().string("Location", LONG_URL));
+	}
+
+	@Test
+	void assignNeverAccessedExpired_setsLastAccessedAtAndResolves() throws Exception {
+		Instant createdAt = clock.instant().minus(inactivity).minusSeconds(1);
+		persistBinding(SHORT_CODE, LONG_URL, LONG_URL, createdAt, null);
+
+		mockMvc.perform(assignJson(LONG_URL, "revived"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.tinyUrl").value(tinyUrl("revived")))
+				.andExpect(jsonPath("$.originalUrl").value(LONG_URL));
+
+		Binding updated = bindingRepository.findByShortCode("revived").orElseThrow();
+		assertThat(updated.getCreatedAt()).isEqualTo(createdAt);
+		assertThat(updated.getLastAccessedAt()).isEqualTo(clock.instant());
+		assertThat(updated.getOriginalUrl()).isEqualTo(LONG_URL);
+		assertThat(bindingRepository.findByShortCode(SHORT_CODE)).isEmpty();
+
+		mockMvc.perform(get("/revived"))
 				.andExpect(status().isFound())
 				.andExpect(header().string("Location", LONG_URL));
 	}
