@@ -196,7 +196,7 @@
             <ul>
               <li>Basic Auth (create / vanity)</li>
               <li>Sanitize long URL</li>
-              <li>Liveness via RestClient — follow redirects; 2xx wins</li>
+              <li>Liveness via RestClient — 2xx or 3xx wins; do not follow redirects</li>
               <li>404 fails immediately; timeout/5xx → 3 × 30s</li>
             </ul>
           </div>

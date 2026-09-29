@@ -74,7 +74,7 @@ flowchart TB
 
 - **Binds:** CAP-4; create pipeline
 - **Prevents:** Create without the gate; split retry semantics; liveness inside the binding write transaction blocking the store
-- **Rule:** The HTTP liveness check of the **original** merchant-pasted long URL runs inside the service-layer create use case via RestClient, **before** the binding write transaction. Follow redirects for the check; success means HTTP 2xx after redirects. Policy: 404-class fails immediately; timeout/5xx up to 3 attempts × 30s each; nothing is stored on failure. Storage still keeps the original string, not the post-redirect URL
+- **Rule:** The HTTP liveness check of the **original** merchant-pasted long URL runs inside the service-layer create use case via RestClient, **before** the binding write transaction. Do not follow redirects; success means HTTP 2xx or 3xx on that URL. Read at most 64 KiB of the body; reaching that limit does not fail a 2xx or 3xx. Policy: 404-class fails immediately; timeout/5xx up to 3 attempts × 30s each; nothing is stored on failure. Storage still keeps the original string
 
 ### AD-5 — Security path rules [ADOPTED]
 

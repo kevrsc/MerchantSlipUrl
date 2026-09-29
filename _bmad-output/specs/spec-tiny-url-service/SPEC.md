@@ -30,7 +30,7 @@ sources: []
 
 - **CAP-4**
   - **intent:** The service refuses to store a long URL that fails an HTTP liveness check after applying the retry policy for transient failures.
-  - **success:** Client errors such as 404 fail immediately with no store; on timeout or 5xx the same long-URL probe is attempted up to 3 times with a 30-second wait per attempt; only after all 3 attempts fail do timeout/5xx refuse with no store; a success response (including a redirect that reaches success) allows minting to proceed.
+  - **success:** Client errors such as 404 fail immediately with no store; on timeout or 5xx the same long-URL probe is attempted up to 3 times with a 30-second wait per attempt; only after all 3 attempts fail do timeout/5xx refuse with no store; HTTP 2xx or a redirect (3xx) on the probed URL allows minting. The probe does not follow redirects. It reads at most 64 KiB of the body; reaching that limit does not fail a 2xx or 3xx.
 
 - **CAP-5**
   - **intent:** On successful create, the merchant can see the tiny URL and the original long URL it is bound to; the tiny URL itself does not encode destination or order content.
@@ -54,7 +54,7 @@ sources: []
 - Create is atomic: either return an existing binding or write tiny URL and original long URL together; concurrent creates must not bind the wrong destination.
 - Persist bindings until inactivity expiry; tiny URLs remain unique across different long URLs.
 - Store and resolve the original merchant-pasted long URL, not a post-redirect final URL.
-- Liveness follows redirects for the check; storage still keeps the original string.
+- Liveness does not follow redirects. A 3xx on the pasted URL is success. Storage still keeps the original string. The probe reads at most 64 KiB of the body; hitting that limit does not fail a 2xx or 3xx.
 - Client errors such as 404 fail liveness immediately; timeouts and 5xx retry the same long-URL probe up to 3 attempts with a 30-second per-attempt wait, then refuse if still failing.
 - Inactivity period is configurable; initial testing value is 5 minutes.
 - Create requires HTTP Basic Auth; resolve does not require create credentials.
@@ -71,11 +71,11 @@ sources: []
 
 ## Success signal
 
-An authenticated merchant pastes a long order-page URL (optionally with a vanity), receives a tiny URL, and a customer opening it lands on that specific order. Creating again with the same long URL returns the same tiny URL. The merchant can later turn that tiny URL into an available vanity. A mistaken long URL that 404s is refused immediately; timeouts/5xx retry the probe up to 3 times (30s each) then refuse if still failing. After the configured inactivity period (5 minutes in initial testing) with no access, the tiny URL no longer resolves.
+An authenticated merchant pastes a long order-page URL (optionally with a vanity), receives a tiny URL, and a customer opening it lands on that specific order. Creating again with the same long URL returns the same tiny URL. The merchant can later turn that tiny URL into an available vanity. A mistaken long URL that 404s is refused immediately. A 3xx on the pasted URL succeeds without following it. The per-attempt 30s budget includes the body read. Hitting the 64 KiB cap does not fail a 2xx or 3xx. Timeouts/5xx retry the probe up to 3 times (30s each) then refuse if still failing. After the configured inactivity period (5 minutes in initial testing) with no access, the tiny URL no longer resolves.
 
 ## Assumptions
 
-- HTTP 2xx after following redirects counts as liveness success.
+- HTTP 2xx or 3xx on the probed URL counts as liveness success. Redirects are not followed.
 - The service is destination-agnostic: it stores and resolves URLs, not order objects.
 - Primary actors are merchant (authenticated create / vanity assign) and customer (unauthenticated resolve via the tiny URL).
 - Basic authentication means HTTP Basic Auth on the create and vanity-assign APIs.

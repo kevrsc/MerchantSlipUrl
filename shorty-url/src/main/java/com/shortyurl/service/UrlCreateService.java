@@ -17,22 +17,26 @@ public class UrlCreateService {
 	private final BindingRepository bindingRepository;
 	private final UrlSanitizer urlSanitizer;
 	private final ShortCodeGenerator shortCodeGenerator;
+	private final UrlLivenessChecker urlLivenessChecker;
 	private final TransactionTemplate transactionTemplate;
 
 	public UrlCreateService(
 			BindingRepository bindingRepository,
 			UrlSanitizer urlSanitizer,
 			ShortCodeGenerator shortCodeGenerator,
+			UrlLivenessChecker urlLivenessChecker,
 			PlatformTransactionManager transactionManager) {
 		this.bindingRepository = bindingRepository;
 		this.urlSanitizer = urlSanitizer;
 		this.shortCodeGenerator = shortCodeGenerator;
+		this.urlLivenessChecker = urlLivenessChecker;
 		this.transactionTemplate = new TransactionTemplate(transactionManager);
 	}
 
 	public CreateUrlResult create(String rawUrl) {
 		String originalUrl = rawUrl.trim();
 		String sanitizedUrl = urlSanitizer.sanitize(originalUrl);
+		urlLivenessChecker.check(originalUrl);
 
 		return bindingRepository.findBySanitizedUrl(sanitizedUrl)
 				.map(existing -> new CreateUrlResult(existing, false))

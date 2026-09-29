@@ -3,6 +3,8 @@ package com.shortyurl.web;
 import com.jayway.jsonpath.JsonPath;
 import com.shortyurl.persistence.Binding;
 import com.shortyurl.persistence.BindingRepository;
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,6 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -23,6 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@ActiveProfiles("test")
 class ResolveUrlIT {
 
 	private static final String LONG_URL = "https://orders.example.com/checkout?orderId=42&token=abc";
@@ -91,12 +95,23 @@ class ResolveUrlIT {
 
 	@Test
 	void createThenResolve_landsOnSameOriginalUrl() throws Exception {
+		try (MockWebServer server = new MockWebServer()) {
+			server.start();
+			server.enqueue(new MockResponse().setResponseCode(200).setBody("ok"));
+			String liveUrl = server.url("/checkout?orderId=42&token=abc").toString();
+			createThenResolve(liveUrl);
+			assertThat(server.getRequestCount()).isEqualTo(1);
+			assertThat(server.takeRequest().getMethod()).isEqualTo("GET");
+		}
+	}
+
+	private void createThenResolve(String liveUrl) throws Exception {
 		MvcResult createResult = mockMvc.perform(post("/api/v1/urls")
 						.with(SecurityMockMvcRequestPostProcessors.httpBasic("merchant", "merchant"))
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 								{"url":"%s"}
-								""".formatted(LONG_URL)))
+								""".formatted(liveUrl)))
 				.andExpect(status().isCreated())
 				.andReturn();
 
@@ -105,7 +120,7 @@ class ResolveUrlIT {
 
 		mockMvc.perform(get("/" + shortCode))
 				.andExpect(status().isFound())
-				.andExpect(header().string("Location", LONG_URL));
+				.andExpect(header().string("Location", liveUrl));
 
 		Binding resolved = bindingRepository.findByShortCode(shortCode).orElseThrow();
 		assertThat(resolved.getLastAccessedAt()).isNotNull();

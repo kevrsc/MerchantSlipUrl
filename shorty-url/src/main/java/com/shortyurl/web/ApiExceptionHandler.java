@@ -1,6 +1,7 @@
 package com.shortyurl.web;
 
 import com.shortyurl.service.InvalidUrlException;
+import com.shortyurl.service.LivenessFailedException;
 import com.shortyurl.service.UrlNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -38,6 +39,13 @@ public class ApiExceptionHandler {
 	ProblemDetail handleUrlNotFound(UrlNotFoundException ex) {
 		ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
 		detail.setTitle("Not Found");
+		return detail;
+	}
+
+	@ExceptionHandler(LivenessFailedException.class)
+	ProblemDetail handleLivenessFailed(LivenessFailedException ex) {
+		ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY, ex.getMessage());
+		detail.setTitle("Bad Gateway");
 		return detail;
 	}
 }
