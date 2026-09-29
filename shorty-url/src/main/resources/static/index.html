@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Shorty</title>
+	<style>
+		:root {
+			--ink: #241c14;
+			--muted: #6d5f52;
+			--paper: #f3efe6;
+			--card: #fffdf8;
+			--line: #e3d8c8;
+			--stamp: #8f3d2b;
+			--ok: #1d6844;
+			--focus: #241c14;
+		}
+
+		* { box-sizing: border-box; }
+
+		body {
+			margin: 0;
+			min-height: 100vh;
+			color: var(--ink);
+			background: var(--paper);
+			font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+			font-size: 16px;
+			line-height: 1.45;
+		}
+
+		main {
+			width: min(40rem, calc(100% - 2rem));
+			margin: 0 auto;
+			padding: 2.5rem 0 4rem;
+		}
+
+		header { margin-bottom: 1.75rem; }
+
+		.eyebrow {
+			margin: 0 0 0.35rem;
+			color: var(--stamp);
+			font-size: 0.78rem;
+			font-weight: 700;
+			letter-spacing: 0.12em;
+			text-transform: uppercase;
+		}
+
+		h1 {
+			margin: 0;
+			font-family: Georgia, "Palatino Linotype", serif;
+			font-size: 3rem;
+			font-weight: 500;
+			letter-spacing: -0.03em;
+			line-height: 1;
+		}
+
+		h2 {
+			margin: 0 0 0.75rem;
+			font-size: 1.05rem;
+			font-weight: 650;
+		}
+
+		.lede, .hint {
+			color: var(--muted);
+		}
+
+		.lede { margin: 0.75rem 0 0; max-width: 36rem; }
+
+		.hint { margin: 0.4rem 0 0; font-size: 0.92rem; }
+
+		section, form.panel {
+			background: var(--card);
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			padding: 1.1rem 1.15rem 1.2rem;
+			margin-top: 0.9rem;
+		}
+
+		.auth {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 0.75rem;
+		}
+
+		label {
+			display: grid;
+			gap: 0.35rem;
+			font-size: 0.92rem;
+			font-weight: 650;
+		}
+
+		label + label { margin-top: 0.85rem; }
+
+		.auth label + label { margin-top: 0; }
+
+		input {
+			width: 100%;
+			padding: 0.6rem 0.7rem;
+			border: 1px solid #cbbfae;
+			border-radius: 4px;
+			background: #fff;
+			color: var(--ink);
+			font: inherit;
+			font-weight: 400;
+		}
+
+		input:focus, button:focus-visible {
+			outline: 2px solid var(--focus);
+			outline-offset: 2px;
+		}
+
+		.actions {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0.6rem;
+			margin-top: 1rem;
+		}
+
+		button {
+			font: inherit;
+			font-weight: 650;
+			background: var(--ink);
+			color: var(--paper);
+			border: 0;
+			border-radius: 4px;
+			padding: 0.65rem 0.95rem;
+			cursor: pointer;
+		}
+
+		button.secondary {
+			background: transparent;
+			color: var(--ink);
+			box-shadow: inset 0 0 0 1.5px var(--ink);
+		}
+
+		button:disabled {
+			opacity: 0.45;
+			cursor: wait;
+		}
+
+		#error, #pending {
+			margin: 0.9rem 0 0;
+			padding: 0.75rem 0.85rem;
+			border-radius: 4px;
+		}
+
+		#error {
+			background: #f8ebe6;
+			color: #6e2418;
+			border-left: 3px solid var(--stamp);
+		}
+
+		#pending {
+			background: #efe6d4;
+			color: var(--ink);
+		}
+
+		.stamp {
+			display: inline-block;
+			margin-bottom: 0.8rem;
+			border: 2px solid var(--ok);
+			color: var(--ok);
+			text-transform: uppercase;
+			letter-spacing: 0.08em;
+			font-size: 0.72rem;
+			font-weight: 700;
+			padding: 0.15rem 0.4rem;
+			transform: rotate(-2deg);
+		}
+
+		.tiny {
+			display: block;
+			margin: 0.15rem 0 0.85rem;
+			font-size: 1.25rem;
+			overflow-wrap: anywhere;
+		}
+
+		.original {
+			display: block;
+			margin-top: 0.2rem;
+			color: var(--muted);
+			overflow-wrap: anywhere;
+		}
+
+		#history-list {
+			list-style: none;
+			margin: 0;
+			padding: 0;
+		}
+
+		#history-list li {
+			display: grid;
+			gap: 0.15rem;
+			padding: 0.75rem 0;
+			border-top: 1px solid var(--line);
+		}
+
+		#history-list a, #history-list span {
+			overflow-wrap: anywhere;
+		}
+
+		#history-list span {
+			color: var(--muted);
+			font-size: 0.9rem;
+		}
+
+		a { color: var(--stamp); }
+
+		@media (max-width: 560px) {
+			h1 { font-size: 2.4rem; }
+			.auth { grid-template-columns: 1fr; }
+		}
+	</style>
+</head>
+<body>
+	<main>
+		<header>
+			<p class="eyebrow">Tiny URL service</p>
+			<h1>Shorty</h1>
+			<p class="lede">Paste a long destination and mint a short address. Opening that address sends the customer to the same URL. Leave it unused and it expires.</p>
+		</header>
+
+		<section>
+			<h2>Merchant sign-in</h2>
+			<div class="auth">
+				<label>Username
+					<input id="user" name="username" autocomplete="username" value="merchant">
+				</label>
+				<label>Password
+					<input id="pass" name="password" type="password" autocomplete="current-password" value="merchant">
+				</label>
+			</div>
+			<p class="hint">Create and vanity assign send these as HTTP Basic credentials. Opening a tiny URL does not.</p>
+		</section>
+
+		<p id="error" role="alert" hidden></p>
+		<p id="pending" role="status" hidden></p>
+
+		<form id="mint" class="panel">
+			<h2>Destination</h2>
+			<label>Long URL
+				<input id="url" name="url" type="url" required maxlength="2048" spellcheck="false" placeholder="https://orders.example.com/checkout?orderId=42" autocomplete="off">
+			</label>
+			<label>Vanity
+				<input id="vanity" name="vanity" maxlength="64" spellcheck="false" placeholder="spring-sale" autocomplete="off">
+			</label>
+			<p class="hint">Leave vanity blank and Shorty picks a code. To rename a destination that already has a tiny URL, enter a free vanity and choose Assign vanity. You can also paste an existing tiny URL into Long URL when assigning.</p>
+			<div class="actions">
+				<button id="create" type="submit">Create tiny URL</button>
+				<button id="assign" class="secondary" type="submit">Assign vanity</button>
+			</div>
+		</form>
+
+		<section id="outcome" hidden>
+			<p class="stamp" data-stamp></p>
+			<a class="tiny" data-tiny target="_blank" rel="noopener"></a>
+			<div class="actions">
+				<button id="copy" type="button">Copy</button>
+			</div>
+			<p class="hint">Original destination</p>
+			<a class="original" data-original target="_blank" rel="noopener"></a>
+		</section>
+
+		<form id="open" class="panel">
+			<h2>Open a tiny URL</h2>
+			<label>Short code or tiny URL
+				<input id="open-value" name="open" spellcheck="false" placeholder="spring-sale" autocomplete="off">
+			</label>
+			<p class="hint">Opens in a new tab. The service redirects to the stored destination. No sign-in is required.</p>
+			<div class="actions">
+				<button type="submit">Open</button>
+			</div>
+		</form>
+
+		<section id="history" hidden>
+			<h2>This session</h2>
+			<ul id="history-list"></ul>
+		</section>
+	</main>
+
+	<noscript>This page needs JavaScript to call the service.</noscript>
+
+	<script>
+		const VANITY_PATTERN = /^(?!(?:error|api)$)[A-Za-z0-9_-]{1,64}$/;
+
+		const userInput = document.querySelector("#user");
+		const passInput = document.querySelector("#pass");
+		const form = document.querySelector("#mint");
+		const urlInput = document.querySelector("#url");
+		const vanityInput = document.querySelector("#vanity");
+		const createButton = document.querySelector("#create");
+		const assignButton = document.querySelector("#assign");
+		const pending = document.querySelector("#pending");
+		const errorBox = document.querySelector("#error");
+		const outcome = document.querySelector("#outcome");
+		const copyButton = document.querySelector("#copy");
+		const historyList = document.querySelector("#history-list");
+		const historySection = document.querySelector("#history");
+		const openForm = document.querySelector("#open");
+		const openInput = document.querySelector("#open-value");
+
+		const storedUser = sessionStorage.getItem("shorty.user");
+		const storedPass = sessionStorage.getItem("shorty.pass");
+		if (storedUser) userInput.value = storedUser;
+		if (storedPass) passInput.value = storedPass;
+
+		function rememberAuth() {
+			sessionStorage.setItem("shorty.user", userInput.value);
+			sessionStorage.setItem("shorty.pass", passInput.value);
+		}
+
+		userInput.addEventListener("change", rememberAuth);
+		passInput.addEventListener("change", rememberAuth);
+		// Constraint checks run before the submit event. Clear the previous
+		// vanity message on edit or click so a corrected value can be submitted.
+		vanityInput.addEventListener("input", () => vanityInput.setCustomValidity(""));
+		createButton.addEventListener("click", () => vanityInput.setCustomValidity(""));
+		assignButton.addEventListener("click", () => vanityInput.setCustomValidity(""));
+		openInput.addEventListener("input", () => openInput.setCustomValidity(""));
+		openForm.querySelector("button").addEventListener("click", () => openInput.setCustomValidity(""));
+
+		function setBusy(busy, message) {
+			createButton.disabled = busy;
+			assignButton.disabled = busy;
+			pending.hidden = !busy;
+			pending.textContent = busy ? message : "";
+			if (busy) pending.scrollIntoView({ block: "nearest" });
+		}
+
+		function showError(message) {
+			errorBox.hidden = false;
+			errorBox.textContent = message;
+			errorBox.scrollIntoView({ block: "nearest" });
+		}
+
+		function clearError() {
+			errorBox.hidden = true;
+			errorBox.textContent = "";
+		}
+
+		function basicToken(user, pass) {
+			const bytes = new TextEncoder().encode(user + ":" + pass);
+			let binary = "";
+			for (const byte of bytes) {
+				binary += String.fromCharCode(byte);
+			}
+			return btoa(binary);
+		}
+
+		function vanityValue(required) {
+			const value = vanityInput.value.trim();
+			if (value === "") {
+				vanityInput.setCustomValidity(required ? "Enter a vanity to assign." : "");
+				return null;
+			}
+			if (!VANITY_PATTERN.test(value)) {
+				vanityInput.setCustomValidity("Use 1–64 letters, digits, underscores, or hyphens. api and error are reserved.");
+				return null;
+			}
+			vanityInput.setCustomValidity("");
+			return value;
+		}
+
+		async function problemMessage(response) {
+			if (response.status === 401) {
+				return "Those credentials were rejected. Create and assign need the merchant username and password.";
+			}
+			const text = await response.text();
+			if (!text) {
+				return "The service returned " + response.status + ".";
+			}
+			try {
+				const body = JSON.parse(text);
+				if (Array.isArray(body.errors) && body.errors.length > 0) {
+					return body.errors.join(" ");
+				}
+				return body.detail || body.title || ("The service returned " + response.status + ".");
+			} catch (ignored) {
+				return text;
+			}
+		}
+
+		async function postJson(path, payload) {
+			rememberAuth();
+			const response = await fetch(path, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Accept: "application/json",
+					Authorization: "Basic " + basicToken(userInput.value, passInput.value)
+				},
+				body: JSON.stringify(payload)
+			});
+			if (!response.ok) {
+				throw new Error(await problemMessage(response));
+			}
+			return { status: response.status, body: await response.json() };
+		}
+
+		function setHttpLink(anchor, value) {
+			anchor.textContent = value;
+			if (/^https?:\/\//i.test(value)) {
+				anchor.href = value;
+			} else {
+				anchor.removeAttribute("href");
+			}
+		}
+
+		function showResult(status, body, action) {
+			const label = action === "assign"
+				? "Vanity assigned"
+				: (status === 201 ? "Created" : "Already shortened");
+			outcome.hidden = false;
+			outcome.querySelector("[data-stamp]").textContent = label;
+			setHttpLink(outcome.querySelector("[data-tiny]"), body.tinyUrl);
+			setHttpLink(outcome.querySelector("[data-original]"), body.originalUrl);
+			copyButton.textContent = "Copy";
+
+			const item = document.createElement("li");
+			const itemLink = document.createElement("a");
+			itemLink.target = "_blank";
+			itemLink.rel = "noopener";
+			setHttpLink(itemLink, body.tinyUrl);
+			const note = document.createElement("span");
+			note.textContent = body.originalUrl;
+			item.append(itemLink, note);
+			historyList.prepend(item);
+			historySection.hidden = false;
+			outcome.scrollIntoView({ block: "nearest" });
+		}
+
+		form.addEventListener("submit", async (event) => {
+			event.preventDefault();
+			const assigning = event.submitter === assignButton;
+			clearError();
+			const vanity = vanityValue(assigning);
+			if (!form.checkValidity()) {
+				form.reportValidity();
+				return;
+			}
+
+			const payload = { url: urlInput.value.trim() };
+			if (vanity) payload.vanity = vanity;
+
+			setBusy(true, assigning
+				? "Assigning vanity…"
+				: "Checking that the destination responds…");
+			try {
+				const result = await postJson(assigning ? "/api/v1/urls/vanity" : "/api/v1/urls", payload);
+				showResult(result.status, result.body, assigning ? "assign" : "create");
+			} catch (error) {
+				showError(error.message || "Could not reach the service.");
+			} finally {
+				setBusy(false);
+			}
+		});
+
+		copyButton.addEventListener("click", async () => {
+			const url = outcome.querySelector("[data-tiny]").textContent;
+			try {
+				await navigator.clipboard.writeText(url);
+				copyButton.textContent = "Copied";
+			} catch (error) {
+				showError("Copy failed. Select the tiny URL and copy it manually.");
+			}
+		});
+
+		openForm.addEventListener("submit", (event) => {
+			event.preventDefault();
+			clearError();
+			const raw = openInput.value.trim();
+			if (!raw) {
+				openInput.setCustomValidity("Enter a short code or tiny URL.");
+				openForm.reportValidity();
+				return;
+			}
+			openInput.setCustomValidity("");
+
+			let target = raw;
+			if (!/^https?:\/\//i.test(raw)) {
+				const code = raw.replace(/^\/+/, "");
+				if (!VANITY_PATTERN.test(code)) {
+					openInput.setCustomValidity("A short code is 1–64 letters, digits, underscores, or hyphens.");
+					openForm.reportValidity();
+					return;
+				}
+				target = location.origin + "/" + code;
+			}
+			window.open(target, "_blank", "noopener");
+		});
+	</script>
+</body>
+</html>
