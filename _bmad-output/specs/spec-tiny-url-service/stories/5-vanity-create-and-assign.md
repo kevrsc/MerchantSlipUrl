@@ -95,6 +95,27 @@ context:
 - Given an existing binding and a free vanity, when assign is called with valid Basic Auth, then the tiny URL uses the vanity, the original URL is unchanged, and the previous short code is 404
 - Given no Basic Auth, when create or assign is called, then the response is 401 and nothing is stored
 
+### Review Findings
+
+- [x] [Review][Patch] Recreate with a vanity owned by another binding is untested [shorty-url/src/test/java/com/shortyurl/web/CreateUrlIT.java:507]
+- [x] [Review][Patch] A sanitized URL longer than 2048 characters is reported as a short-code or vanity conflict [shorty-url/src/main/java/com/shortyurl/service/UrlCreateService.java:102]
+- [x] [Review][Patch] Large-body create tests fail when the call takes 450 ms or more [shorty-url/src/test/java/com/shortyurl/web/CreateUrlIT.java:115]
+- [x] [Review][Defer] Lost unique-constraint races are not raised in tests [shorty-url/src/main/java/com/shortyurl/service/UrlCreateService.java:125] — deferred: the non-racing 409 is already asserted; forcing the constraint loss needs a concurrent insert this suite does not set up
+
+#### Rejected
+
+- rejected — Probe of private and metadata hosts. Create still probes any http(s) URL the merchant pastes. A denylist is not in the spec.
+- false — `Binding.onCreate` does not expire production rows on wall time. Create and assign set `createdAt` from the injected clock before save, so `Instant.now()` runs only when `createdAt` is already null.
+- false — A null URL does not reach `trim()`. `@NotBlank` on create and assign rejects it before the service.
+- false — `anyRequest().permitAll()` is the public resolve path. `POST /api/v1/urls` and `POST /api/v1/urls/**` stay authenticated.
+- false — `readTinyUrl` does not break on the tiny URLs this API returns. They are the public base plus a short code, which cannot contain a quote.
+- low — Default ports, an empty path versus `/`, and userinfo are not collapsed. Architecture left fine-grained sanitize rules to the implementation, and collapsing them adds normalization beyond the documented URI normalize.
+- low — A `%2F` in the path is decoded into the sanitized key. That is the same deferred sanitize-rule choice: `URI.getPath()` decoding is what the current normalize does.
+- low — Vanity has no bean-validation size or pattern. `Vanity.require` already returns 400 for an illegal vanity.
+- low — `IllegalStateException` and `NoSuchElementException` are not ProblemDetail responses. They fire only after eight short-code collisions or a deleted row, and nothing in this service deletes bindings. Extra handlers are more than a direct correction.
+- low — Two concurrent assigns of one binding to two free vanities can both return 200. That needs overlapping writes, and a row version or lock is extra complexity.
+- low — No test assigns a vanity to a never-accessed expired row. `Inactivity.isExpired` already uses `createdAt` when `lastAccessedAt` is null, and `assignExpired_resetsLastAccessAndResolves` covers the expired assign branch.
+
 ## Implementation Notes
 
 - Create accepts optional `vanity`. `Vanity.optional` treats null or blank as “generate”. Any other value must match the resolve pattern, including the `api` / `error` exclusion. If the sanitized URL already has a binding, the vanity is ignored and create still runs liveness and `reuseExisting`. A taken vanity is 409 before liveness only when no binding exists for that URL. A free vanity is inserted as `shortCode`. A short-code unique-constraint loss on that insert is 409, not a regenerated code.

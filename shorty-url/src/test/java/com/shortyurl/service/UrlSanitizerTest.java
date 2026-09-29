@@ -38,4 +38,13 @@ class UrlSanitizerTest {
 		assertThatThrownBy(() -> sanitizer.sanitize("http://"))
 				.isInstanceOf(InvalidUrlException.class);
 	}
+
+	@Test
+	void rejectsSanitizedUrlLongerThanColumn() {
+		String raw = "http://example.com/" + "ä".repeat(400);
+		assertThat(raw.length()).isLessThanOrEqualTo(UrlSanitizer.MAX_SANITIZED_LENGTH);
+		assertThatThrownBy(() -> sanitizer.sanitize(raw))
+				.isInstanceOf(InvalidUrlException.class)
+				.hasMessage("url is too long");
+	}
 }

@@ -9,6 +9,8 @@ import java.util.Locale;
 @Component
 public class UrlSanitizer {
 
+	static final int MAX_SANITIZED_LENGTH = 2048;
+
 	public String sanitize(String rawUrl) {
 		if (rawUrl == null || rawUrl.isBlank()) {
 			throw new InvalidUrlException("url must not be blank");
@@ -44,7 +46,11 @@ public class UrlSanitizer {
 					uri.getQuery(),
 					null
 			).normalize();
-			return normalized.toASCIIString();
+			String sanitized = normalized.toASCIIString();
+			if (sanitized.length() > MAX_SANITIZED_LENGTH) {
+				throw new InvalidUrlException("url is too long");
+			}
+			return sanitized;
 		}
 		catch (URISyntaxException ex) {
 			throw new InvalidUrlException("url could not be normalized");

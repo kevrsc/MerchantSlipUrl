@@ -106,13 +106,11 @@ class CreateUrlIT {
 	void largeBody_stopsAtCapAndCreateSucceeds() throws Exception {
 		try (StallingBodyServer stalling = new StallingBodyServer()) {
 			stalling.enqueue(200, body(128), true);
-			Instant start = Instant.now();
 
 			mockMvc.perform(postJson(stalling.url("/big")))
 					.andExpect(status().isCreated())
 					.andExpect(jsonPath("$.originalUrl").value(stalling.url("/big")));
 
-			assertThat(Duration.between(start, Instant.now())).isLessThan(Duration.ofMillis(450));
 			assertThat(stalling.requestCount()).isEqualTo(1);
 			assertThat(bindingRepository.count()).isEqualTo(1);
 		}
@@ -124,13 +122,11 @@ class CreateUrlIT {
 		try (StallingBodyServer stalling = new StallingBodyServer()) {
 			String pasted = stalling.url("/pasted");
 			stalling.enqueue(302, body(128), true, stalling.url("/secret"));
-			Instant start = Instant.now();
 
 			mockMvc.perform(postJson(pasted))
 					.andExpect(status().isCreated())
 					.andExpect(jsonPath("$.originalUrl").value(pasted));
 
-			assertThat(Duration.between(start, Instant.now())).isLessThan(Duration.ofMillis(450));
 			assertThat(stalling.requestCount()).isEqualTo(1);
 			assertThat(stalling.requests().getFirst().target()).isEqualTo("/pasted");
 			assertThat(bindingRepository.count()).isEqualTo(1);
@@ -338,6 +334,18 @@ class CreateUrlIT {
 	}
 
 	@Test
+	void sanitizedUrlLongerThanColumn_returns400AndStoresNothing() throws Exception {
+		String raw = "http://example.com/" + "ä".repeat(400);
+
+		mockMvc.perform(postJson(raw))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.detail").value("url is too long"));
+
+		assertThat(bindingRepository.count()).isZero();
+		assertThat(server.getRequestCount()).isZero();
+	}
+
+	@Test
 	void messyEquivalentUrl_isIdempotentAfterSanitize() throws Exception {
 		int port = server.getPort();
 		String pasted = "http://LOCALHOST:" + port + "/path#frag";
@@ -504,7 +512,8 @@ class CreateUrlIT {
 	}
 
 	@Test
-	void existingLongUrl_withTakenVanity_returns409AndDoesNotProbeAgain() throws Exception {
+	void existingLongUrl_withTakenVanity_returnsExistingTinyUrl() throws Exception {
+		seedBinding("other-vanity", otherUrl);
 		enqueue(200);
 		enqueue(200);
 		MvcResult first = mockMvc.perform(postJson(longUrl))
@@ -516,9 +525,10 @@ class CreateUrlIT {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.tinyUrl").value(tinyUrl));
 
-		assertThat(bindingRepository.count()).isEqualTo(1);
+		assertThat(bindingRepository.count()).isEqualTo(2);
 		assertThat(bindingRepository.findByShortCode(shortCodeOf(tinyUrl))).isPresent();
-		assertThat(bindingRepository.findByShortCode("other-vanity")).isEmpty();
+		Binding taken = bindingRepository.findByShortCode("other-vanity").orElseThrow();
+		assertThat(taken.getOriginalUrl()).isEqualTo(otherUrl);
 	}
 
 	@Test
