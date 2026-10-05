@@ -204,6 +204,28 @@ class CreateUrlIT {
 	}
 
 	@Test
+	void trailingSlash_reusesTheExistingBinding() throws Exception {
+		String bare = server.url("/checkout").toString();
+		String slashed = server.url("/checkout/").toString();
+		enqueue(200);
+		enqueue(200);
+
+		MvcResult first = mockMvc.perform(postJson(bare))
+				.andExpect(status().isCreated())
+				.andReturn();
+		String tinyUrl = readTinyUrl(first);
+
+		mockMvc.perform(postJson(slashed))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.tinyUrl").value(tinyUrl))
+				.andExpect(jsonPath("$.originalUrl").value(bare));
+
+		assertThat(bindingRepository.count()).isEqualTo(1);
+		assertThat(bindingRepository.findAll().getFirst().getOriginalUrl()).isEqualTo(bare);
+		assertThat(server.getRequestCount()).isEqualTo(2);
+	}
+
+	@Test
 	void idempotentCreate_returnsSameTinyUrlWithoutSecondBinding() throws Exception {
 		enqueue(200);
 		enqueue(200);

@@ -165,6 +165,24 @@ class ResolveUrlIT {
 	}
 
 	@Test
+	void unusableDestination_returns500AndLeavesLastAccessUnchanged() throws Exception {
+		String badUrl = "http://orders.example.com/has space";
+		persistBinding(SHORT_CODE, badUrl, "http://orders.example.com/has%20space", clock.instant(), null);
+
+		mockMvc.perform(get("/" + SHORT_CODE))
+				.andExpect(status().isInternalServerError())
+				.andExpect(header().doesNotExist("Location"))
+				.andExpect(jsonPath("$.status").value(500))
+				.andExpect(jsonPath("$.title").value("Internal Server Error"))
+				.andExpect(jsonPath("$.detail").value("Stored destination is not a valid redirect target"));
+
+		Binding stored = bindingRepository.findByShortCode(SHORT_CODE).orElseThrow();
+		assertThat(stored.getLastAccessedAt()).isNull();
+		assertThat(stored.getOriginalUrl()).isEqualTo(badUrl);
+		assertThat(stored.getCreatedAt()).isEqualTo(clock.instant());
+	}
+
+	@Test
 	void missingCode_returns404WithNoRedirect() throws Exception {
 		persistBinding(SHORT_CODE, LONG_URL, LONG_URL, clock.instant(), null);
 

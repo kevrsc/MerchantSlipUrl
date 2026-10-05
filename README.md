@@ -92,7 +92,7 @@ curl -I http://localhost:8080/spring-sale
 
 ### Rules that affect the result
 
-- Only `http` and `https` URLs are accepted. The host is lowercased and a fragment (`#...`) is dropped before the duplicate check. The response still shows the URL you pasted.
+- Only `http` and `https` URLs are accepted. The host is lowercased, a fragment (`#...`) is dropped, and a trailing slash is removed before the duplicate check. `https://example.com/a/` and `https://example.com/a` are one destination, as are `https://example.com/` and `https://example.com`. The response still shows the URL that was stored.
 - A vanity is 1–64 characters: letters, digits, `_`, and `-`. The exact names `api` and `error` are reserved. `API` is allowed.
 - A vanity already bound to a different destination is **409**.
 - Create probes the pasted URL with HTTP GET and does not follow redirects. A 2xx or 3xx response may be stored. A 4xx fails once. A timeout or 5xx is tried up to 3 times, 30 seconds each. Failure is **502** and nothing new is stored. If that destination already expired, the old row is not refreshed.

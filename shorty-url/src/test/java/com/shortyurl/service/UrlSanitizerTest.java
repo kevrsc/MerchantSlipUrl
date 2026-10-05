@@ -16,6 +16,20 @@ class UrlSanitizerTest {
 	}
 
 	@Test
+	void trailingSlashCollapsesToTheSameKey() {
+		assertThat(sanitizer.sanitize("https://shop.example.com/a/b/"))
+				.isEqualTo("https://shop.example.com/a/b");
+		assertThat(sanitizer.sanitize("https://shop.example.com/a/b//"))
+				.isEqualTo("https://shop.example.com/a/b");
+		assertThat(sanitizer.sanitize("https://shop.example.com/a/b/?x=1"))
+				.isEqualTo("https://shop.example.com/a/b?x=1");
+		assertThat(sanitizer.sanitize("https://shop.example.com/"))
+				.isEqualTo("https://shop.example.com");
+		assertThat(sanitizer.sanitize("https://shop.example.com"))
+				.isEqualTo("https://shop.example.com");
+	}
+
+	@Test
 	void rejectsNonHttpSchemes() {
 		assertThatThrownBy(() -> sanitizer.sanitize("ftp://files.example.com/a"))
 				.isInstanceOf(InvalidUrlException.class);

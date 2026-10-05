@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URI;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -34,7 +35,20 @@ public class UrlResolveService {
 		if (Inactivity.isExpired(binding.getCreatedAt(), binding.getLastAccessedAt(), now, inactivity)) {
 			throw new UrlExpiredException(shortCode);
 		}
+		requireRedirectable(binding.getOriginalUrl());
 		binding.setLastAccessedAt(now);
 		return binding.getOriginalUrl();
+	}
+
+	private static void requireRedirectable(String originalUrl) {
+		if (originalUrl == null) {
+			throw new UnusableDestinationException();
+		}
+		try {
+			URI.create(originalUrl);
+		}
+		catch (IllegalArgumentException ex) {
+			throw new UnusableDestinationException();
+		}
 	}
 }

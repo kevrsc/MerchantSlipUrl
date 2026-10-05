@@ -46,6 +46,18 @@ public class UrlSanitizer {
 					uri.getQuery(),
 					null
 			).normalize();
+			String path = collapseTrailingSlash(normalized.getPath());
+			if (!path.equals(normalized.getPath())) {
+				normalized = new URI(
+						normalized.getScheme(),
+						normalized.getUserInfo(),
+						normalized.getHost(),
+						normalized.getPort(),
+						path,
+						normalized.getQuery(),
+						null
+				);
+			}
 			String sanitized = normalized.toASCIIString();
 			if (sanitized.length() > MAX_SANITIZED_LENGTH) {
 				throw new InvalidUrlException("url is too long");
@@ -55,5 +67,16 @@ public class UrlSanitizer {
 		catch (URISyntaxException ex) {
 			throw new InvalidUrlException("url could not be normalized");
 		}
+	}
+
+	private static String collapseTrailingSlash(String path) {
+		if (path == null || path.isEmpty()) {
+			return "";
+		}
+		int end = path.length();
+		while (end > 0 && path.charAt(end - 1) == '/') {
+			end--;
+		}
+		return path.substring(0, end);
 	}
 }

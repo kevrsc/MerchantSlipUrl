@@ -1,5 +1,6 @@
 package com.shortyurl.web;
 
+import com.shortyurl.service.UnusableDestinationException;
 import com.shortyurl.service.UrlExpiredException;
 import com.shortyurl.service.UrlNotFoundException;
 import com.shortyurl.service.UrlResolveService;
@@ -39,6 +40,10 @@ public class ResolveUrlController {
 		}
 		catch (UrlExpiredException ex) {
 			log.info("GET /{} expired", shortCode);
+			throw ex;
+		}
+		catch (UnusableDestinationException ex) {
+			log.warn("GET /{} destination is not a valid redirect", shortCode);
 			throw ex;
 		}
 	}

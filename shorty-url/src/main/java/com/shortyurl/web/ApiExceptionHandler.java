@@ -1,5 +1,6 @@
 package com.shortyurl.web;
 
+import com.shortyurl.service.UnusableDestinationException;
 import com.shortyurl.service.InvalidUrlException;
 import com.shortyurl.service.InvalidVanityException;
 import com.shortyurl.service.LivenessFailedException;
@@ -63,6 +64,13 @@ public class ApiExceptionHandler {
 	ProblemDetail handleUrlExpired(UrlExpiredException ex) {
 		ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.GONE, ex.getMessage());
 		detail.setTitle("Gone");
+		return detail;
+	}
+
+	@ExceptionHandler(UnusableDestinationException.class)
+	ProblemDetail handleUnusableDestination(UnusableDestinationException ex) {
+		ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage());
+		detail.setTitle("Internal Server Error");
 		return detail;
 	}
 
