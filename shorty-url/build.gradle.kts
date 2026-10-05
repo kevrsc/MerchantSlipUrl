@@ -30,6 +30,7 @@ dependencies {
 	testImplementation("org.springframework.boot:spring-boot-starter-validation-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
 	testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+	testImplementation("com.microsoft.playwright:playwright:1.52.0")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
