@@ -9,7 +9,7 @@ baseline_commit: '63e6b6cbca244255232a9f75648ece8e23b1f4f1'
 context:
   - '{project-root}/_bmad-output/specs/spec-tiny-url-service/SPEC.md'
   - '{project-root}/_bmad-output/specs/spec-tiny-url-service/create-pipeline.md'
-  - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-ShortyUrlBmad-2026-09-25/ARCHITECTURE-SPINE.md'
+  - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-MerchantSlipUrl-2026-09-25/ARCHITECTURE-SPINE.md'
   - '{project-root}/_bmad-output/specs/spec-tiny-url-service/stories/1-authenticated-default-create.md'
 ---
 
@@ -54,25 +54,25 @@ context:
 
 ## Code Map
 
-- `shorty-url/src/main/java/com/shortyurl/web/SecurityConfig.java` -- already `anyRequest().permitAll()` after create matchers; do not require auth for GET resolve
-- `shorty-url/src/main/java/com/shortyurl/persistence/Binding.java` -- has nullable `lastAccessedAt`; reuse
-- `shorty-url/src/main/java/com/shortyurl/persistence/BindingRepository.java` -- add `findByShortCode`; keep existing finders
-- `shorty-url/src/main/java/com/shortyurl/web/CreateUrlController.java` -- leave create as-is; do not overload with resolve
-- `shorty-url/src/main/java/com/shortyurl/service/UrlCreateService.java` -- leave create path unchanged
-- `shorty-url/.../service/UrlResolveService.java` _(add)_ -- transactional lookup by shortCode + update lastAccessedAt + return originalUrl or not-found
-- `shorty-url/.../web/ResolveUrlController.java` _(add)_ -- `GET /{shortCode}` → 302 or 404
-- `shorty-url/.../web/ApiExceptionHandler.java` -- extend or add handler so resolve not-found maps to 404 without breaking create JSON errors
-- `shorty-url/src/test/java/.../ResolveUrlIT.java` _(add)_ -- cover I/O matrix
+- `MerchantSlipUrl/src/main/java/com/merchantslipurl/web/SecurityConfig.java` -- already `anyRequest().permitAll()` after create matchers; do not require auth for GET resolve
+- `MerchantSlipUrl/src/main/java/com/merchantslipurl/persistence/Binding.java` -- has nullable `lastAccessedAt`; reuse
+- `MerchantSlipUrl/src/main/java/com/merchantslipurl/persistence/BindingRepository.java` -- add `findByShortCode`; keep existing finders
+- `MerchantSlipUrl/src/main/java/com/merchantslipurl/web/CreateUrlController.java` -- leave create as-is; do not overload with resolve
+- `MerchantSlipUrl/src/main/java/com/merchantslipurl/service/UrlCreateService.java` -- leave create path unchanged
+- `MerchantSlipUrl/.../service/UrlResolveService.java` _(add)_ -- transactional lookup by shortCode + update lastAccessedAt + return originalUrl or not-found
+- `MerchantSlipUrl/.../web/ResolveUrlController.java` _(add)_ -- `GET /{shortCode}` → 302 or 404
+- `MerchantSlipUrl/.../web/ApiExceptionHandler.java` -- extend or add handler so resolve not-found maps to 404 without breaking create JSON errors
+- `MerchantSlipUrl/src/test/java/.../ResolveUrlIT.java` _(add)_ -- cover I/O matrix
 - Do not change BMAD tooling under `_bmad/`, `.agents/`
 
 ## Tasks & Acceptance
 
 **Execution:**
-- [x] `shorty-url/.../persistence/BindingRepository.java` -- add `Optional<Binding> findByShortCode(String shortCode)` -- resolve lookup
-- [x] `shorty-url/.../service/UrlResolveService.java` (+ not-found signal) -- transactional resolve: find by shortCode, set lastAccessedAt, return originalUrl -- CAP-2, AD-2
-- [x] `shorty-url/.../web/ResolveUrlController.java` -- `GET /{shortCode}` returns 302 Location or 404 -- public redirect
-- [x] `shorty-url/.../web/ApiExceptionHandler.java` (or sibling) -- map resolve not-found to 404 -- consistent errors
-- [x] `shorty-url/src/test/java/.../ResolveUrlIT.java` -- tests for matrix rows (happy, missing, no auth, create-then-resolve) -- Ready-for-dev testable
+- [x] `MerchantSlipUrl/.../persistence/BindingRepository.java` -- add `Optional<Binding> findByShortCode(String shortCode)` -- resolve lookup
+- [x] `MerchantSlipUrl/.../service/UrlResolveService.java` (+ not-found signal) -- transactional resolve: find by shortCode, set lastAccessedAt, return originalUrl -- CAP-2, AD-2
+- [x] `MerchantSlipUrl/.../web/ResolveUrlController.java` -- `GET /{shortCode}` returns 302 Location or 404 -- public redirect
+- [x] `MerchantSlipUrl/.../web/ApiExceptionHandler.java` (or sibling) -- map resolve not-found to 404 -- consistent errors
+- [x] `MerchantSlipUrl/src/test/java/.../ResolveUrlIT.java` -- tests for matrix rows (happy, missing, no auth, create-then-resolve) -- Ready-for-dev testable
 
 **Acceptance Criteria:**
 - Given an existing binding, when `GET /{shortCode}` is called without auth, then the response is 302 with `Location` equal to that binding’s `originalUrl` and `lastAccessedAt` is set
@@ -112,7 +112,7 @@ Prefer a dedicated `@Controller` for redirect (not `@RestController`) so 302 use
 ## Verification
 
 **Commands:**
-- `cd shorty-url && ./gradlew.bat test` -- expected: all tests green including ResolveUrlIT
+- `cd MerchantSlipUrl && ./gradlew.bat test` -- expected: all tests green including ResolveUrlIT
 
 **Manual checks (if no CLI):**
 - Create with Basic Auth, then open the returned tiny URL path without auth → browser/curl follows or shows 302 to original URL; bogus code → 404

@@ -2,7 +2,7 @@
 id: SPEC-tiny-url-service
 companions:
   - create-pipeline.md
-  - ../../planning-artifacts/architecture/architecture-ShortyUrlBmad-2026-09-25/ARCHITECTURE-SPINE.md
+  - ../../planning-artifacts/architecture/architecture-MerchantSlipUrl-2026-09-25/ARCHITECTURE-SPINE.md
 sources: []
 ---
 

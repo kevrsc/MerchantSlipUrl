@@ -3,10 +3,10 @@
 ## Generated Tests
 
 ### API Tests
-- [x] `shorty-url/src/test/java/com/shortyurl/web/ShortyApiGapsIT.java` — contracts the existing create and resolve suites did not assert
+- [x] `MerchantSlipUrl/src/test/java/com/merchantslipurl/web/MerchantSlipUrlApiGapsIT.java` — contracts the existing create and resolve suites did not assert
 
 ### E2E Tests
-- [x] `shorty-url/src/test/java/com/shortyurl/web/ShortyPageE2E.java` — merchant page workflows in Chromium
+- [x] `MerchantSlipUrl/src/test/java/com/merchantslipurl/web/MerchantSlipUrlPageE2E.java` — merchant page workflows in Chromium
 
 ## Coverage
 
@@ -20,7 +20,7 @@
 
 ## Verification
 
-`./gradlew test` in `shorty-url` — 100 tests, 0 failures.
+`./gradlew test` in `MerchantSlipUrl` — 100 tests, 0 failures.
 
 ## Next Steps
 

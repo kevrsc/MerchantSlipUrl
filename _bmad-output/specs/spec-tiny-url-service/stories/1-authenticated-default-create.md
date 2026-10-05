@@ -9,7 +9,7 @@ baseline_commit: 'NO_VCS'
 context:
   - '{project-root}/_bmad-output/specs/spec-tiny-url-service/SPEC.md'
   - '{project-root}/_bmad-output/specs/spec-tiny-url-service/create-pipeline.md'
-  - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-ShortyUrlBmad-2026-09-25/ARCHITECTURE-SPINE.md'
+  - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-MerchantSlipUrl-2026-09-25/ARCHITECTURE-SPINE.md'
 ---
 
 <frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">
@@ -57,26 +57,26 @@ context:
 - _(greenfield — no application source yet)_
 - `_bmad-output/specs/spec-tiny-url-service/SPEC.md` -- CAP-1/3/5/6 contract
 - `_bmad-output/specs/spec-tiny-url-service/create-pipeline.md` -- create steps; skip liveness/vanity this story
-- `_bmad-output/planning-artifacts/architecture/architecture-ShortyUrlBmad-2026-09-25/ARCHITECTURE-SPINE.md` -- AD-1..8, stack, package seed
-- `shorty-url/` _(to create)_ -- Spring Boot root (Gradle, Java 21)
-- `shorty-url/src/main/java/com/shortyurl/.../web/` -- create controller + Security filter chain
-- `shorty-url/src/main/java/com/shortyurl/.../service/` -- create service, sanitize, shortCode generator
-- `shorty-url/src/main/java/com/shortyurl/.../persistence/` -- Binding entity + repository
-- `shorty-url/src/main/resources/application.properties` -- H2, Basic Auth user, server port
+- `_bmad-output/planning-artifacts/architecture/architecture-MerchantSlipUrl-2026-09-25/ARCHITECTURE-SPINE.md` -- AD-1..8, stack, package seed
+- `MerchantSlipUrl/` _(to create)_ -- Spring Boot root (Gradle, Java 21)
+- `MerchantSlipUrl/src/main/java/com/merchantslipurl/.../web/` -- create controller + Security filter chain
+- `MerchantSlipUrl/src/main/java/com/merchantslipurl/.../service/` -- create service, sanitize, shortCode generator
+- `MerchantSlipUrl/src/main/java/com/merchantslipurl/.../persistence/` -- Binding entity + repository
+- `MerchantSlipUrl/src/main/resources/application.properties` -- H2, Basic Auth user, server port
 - Do not change BMAD tooling under `_bmad/`, `.agents/`, or planning memlogs during implementation
 
 ## Tasks & Acceptance
 
 **Execution:**
-- [x] `shorty-url/settings.gradle(.kts)` + `build.gradle(.kts)` -- Scaffold Spring Boot 4.1.1 Gradle project with Java 21 and starters webmvc, security, data-jpa, H2 (+ test starters) -- cold-start stack pin
-- [x] `shorty-url/src/main/java/com/shortyurl/ShortyUrlApplication.java` -- Boot entrypoint -- runnable service
-- [x] `shorty-url/.../persistence/Binding.java` + `BindingRepository.java` -- Entity with id, shortCode, originalUrl, sanitizedUrl, timestamps; unique constraints; repository finders -- AD-3/AD-8 store
-- [x] `shorty-url/.../service/UrlSanitizer.java` + `ShortCodeGenerator.java` -- Stable sanitize key; opaque unique short codes -- idempotency + mute short form
-- [x] `shorty-url/.../service/UrlCreateService.java` -- Transactional create: sanitize → lookup → bind or return existing -- CAP-1/3, AD-2
-- [x] `shorty-url/.../web/CreateUrlController.java` + DTOs -- POST create endpoint; JSON response tinyUrl + originalUrl -- CAP-5
-- [x] `shorty-url/.../web/SecurityConfig.java` -- Basic Auth required on create path; leave room for later resolve permitAll -- CAP-6, AD-5
-- [x] `shorty-url/src/main/resources/application.properties` -- H2, auth user, port, tiny-url base -- local runtime
-- [x] `shorty-url/src/test/java/...` -- Tests for I/O matrix (auth, happy, idempotent, validation) -- Ready-for-dev testable
+- [x] `MerchantSlipUrl/settings.gradle(.kts)` + `build.gradle(.kts)` -- Scaffold Spring Boot 4.1.1 Gradle project with Java 21 and starters webmvc, security, data-jpa, H2 (+ test starters) -- cold-start stack pin
+- [x] `MerchantSlipUrl/src/main/java/com/merchantslipurl/MerchantSlipUrlApplication.java` -- Boot entrypoint -- runnable service
+- [x] `MerchantSlipUrl/.../persistence/Binding.java` + `BindingRepository.java` -- Entity with id, shortCode, originalUrl, sanitizedUrl, timestamps; unique constraints; repository finders -- AD-3/AD-8 store
+- [x] `MerchantSlipUrl/.../service/UrlSanitizer.java` + `ShortCodeGenerator.java` -- Stable sanitize key; opaque unique short codes -- idempotency + mute short form
+- [x] `MerchantSlipUrl/.../service/UrlCreateService.java` -- Transactional create: sanitize → lookup → bind or return existing -- CAP-1/3, AD-2
+- [x] `MerchantSlipUrl/.../web/CreateUrlController.java` + DTOs -- POST create endpoint; JSON response tinyUrl + originalUrl -- CAP-5
+- [x] `MerchantSlipUrl/.../web/SecurityConfig.java` -- Basic Auth required on create path; leave room for later resolve permitAll -- CAP-6, AD-5
+- [x] `MerchantSlipUrl/src/main/resources/application.properties` -- H2, auth user, port, tiny-url base -- local runtime
+- [x] `MerchantSlipUrl/src/test/java/...` -- Tests for I/O matrix (auth, happy, idempotent, validation) -- Ready-for-dev testable
 
 **Acceptance Criteria:**
 - Given valid Basic Auth and a long URL, when create is called, then the response includes a tiny URL and the same original URL, and a binding exists in H2
@@ -87,7 +87,7 @@ context:
 
 ## Implementation Notes
 
-- Greenfield `shorty-url/` Spring Boot 4.1.1 / Java 21 / Gradle; Foojay toolchain for JDK 21 on host with JDK 25.
+- Greenfield `MerchantSlipUrl/` Spring Boot 4.1.1 / Java 21 / Gradle; Foojay toolchain for JDK 21 on host with JDK 25.
 - `POST /api/v1/urls` with Basic Auth `merchant`/`merchant`; tiny URL base `http://localhost:8080/`.
 - Matrix covered by `CreateUrlIT` + `UrlSanitizerTest`; `gradlew.bat test --rerun-tasks` BUILD SUCCESSFUL.
 - Review patches: DataIntegrityViolationException recovery on create; `@Size(max=2048)`; invalid-URL IT + sanitizer hostless/malformed tests; gradle-wrapper.jar regenerated; h2console removed.
@@ -125,8 +125,8 @@ Suggested create route: `POST /api/v1/urls` with body `{ "url": "..." }` and res
 ## Verification
 
 **Commands:**
-- `cd shorty-url && ./gradlew test` (or `gradlew.bat test` on Windows) -- expected: all tests green
-- `cd shorty-url && ./gradlew bootRun` -- expected: app starts on configured port
+- `cd MerchantSlipUrl && ./gradlew test` (or `gradlew.bat test` on Windows) -- expected: all tests green
+- `cd MerchantSlipUrl && ./gradlew bootRun` -- expected: app starts on configured port
 
 **Manual checks (if no CLI):**
 - curl create with Basic Auth returns tinyUrl + originalUrl; repeat yields same tinyUrl; without auth → 401

@@ -9,7 +9,7 @@ baseline_commit: '5057d505d6608ce5108709914034081480292e07'
 context:
   - '{project-root}/_bmad-output/specs/spec-tiny-url-service/SPEC.md'
   - '{project-root}/_bmad-output/specs/spec-tiny-url-service/create-pipeline.md'
-  - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-ShortyUrlBmad-2026-09-25/ARCHITECTURE-SPINE.md'
+  - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-MerchantSlipUrl-2026-09-25/ARCHITECTURE-SPINE.md'
   - '{project-root}/_bmad-output/specs/spec-tiny-url-service/stories/1-authenticated-default-create.md'
   - '{project-root}/_bmad-output/specs/spec-tiny-url-service/stories/2-resolve-tiny-url-to-original-destination.md'
 ---
@@ -51,7 +51,7 @@ context:
 - Update existing create ITs (and create-then-resolve IT) to stub a live destination; add matrix coverage for 404 immediate and exhausted timeout/5xx refuse with `count()==0`
 - Liveness refuse returns **502 Bad Gateway** to the merchant (ProblemDetail), framing upstream destination failure
 - Redirect policy: stop at the first response. 3xx means the pasted URL is live
-- Body cap: `shortyurl.liveness.max-body-bytes` defaults to **65536**. Tests may lower it. Hitting the cap while reading a 2xx or 3xx still counts as success
+- Body cap: `merchantslipurl.liveness.max-body-bytes` defaults to **65536**. Tests may lower it. Hitting the cap while reading a 2xx or 3xx still counts as success
 - A 2xx or 3xx with a null response body is liveness success
 
 ## I/O & Edge-Case Matrix
@@ -72,22 +72,22 @@ context:
 
 ## Code Map
 
-- `shorty-url/build.gradle.kts` -- add `spring-boot-starter-restclient`; test stub via MockWebServer
-- `shorty-url/src/main/resources/application.properties` -- `shortyurl.liveness.max-attempts=3`, `timeout=30s`, `max-body-bytes=65536`; test profile shortens timeout and may lower the cap
-- `shorty-url/src/main/java/com/shortyurl/service/UrlCreateService.java` -- after sanitize, `check(originalUrl)` before lookup/bind; transaction wraps only save
-- `shorty-url/src/main/java/com/shortyurl/service/UrlLivenessChecker.java` _(add)_ -- RestClient GET, redirects off; 2xx/3xx success; 4xx fail once; timeout/5xx retry; stop body read at the cap. The per-attempt timeout bounds the whole attempt, including bytes read after response headers. A stall mid-body fails that attempt within the timeout and uses the timeout retry path
-- `shorty-url/src/main/java/com/shortyurl/service/LivenessFailedException.java` _(add)_ -- refuse signal
-- `shorty-url/src/main/java/com/shortyurl/web/ApiExceptionHandler.java` -- map that exception to ProblemDetail 502
-- `shorty-url/src/main/java/com/shortyurl/web/CreateUrlController.java` -- leave thin
-- `shorty-url/src/test/java/com/shortyurl/web/CreateUrlIT.java` -- stub destinations; cover the matrix, including pasted URL vs sanitized key
-- `shorty-url/src/test/java/com/shortyurl/web/ResolveUrlIT.java` -- create-then-resolve must stub a live destination
-- `shorty-url/src/test/java/com/shortyurl/service/UrlLivenessCheckerTest.java` _(add)_ -- retry vs immediate 4xx, 3xx not followed, body cap
+- `MerchantSlipUrl/build.gradle.kts` -- add `spring-boot-starter-restclient`; test stub via MockWebServer
+- `MerchantSlipUrl/src/main/resources/application.properties` -- `merchantslipurl.liveness.max-attempts=3`, `timeout=30s`, `max-body-bytes=65536`; test profile shortens timeout and may lower the cap
+- `MerchantSlipUrl/src/main/java/com/merchantslipurl/service/UrlCreateService.java` -- after sanitize, `check(originalUrl)` before lookup/bind; transaction wraps only save
+- `MerchantSlipUrl/src/main/java/com/merchantslipurl/service/UrlLivenessChecker.java` _(add)_ -- RestClient GET, redirects off; 2xx/3xx success; 4xx fail once; timeout/5xx retry; stop body read at the cap. The per-attempt timeout bounds the whole attempt, including bytes read after response headers. A stall mid-body fails that attempt within the timeout and uses the timeout retry path
+- `MerchantSlipUrl/src/main/java/com/merchantslipurl/service/LivenessFailedException.java` _(add)_ -- refuse signal
+- `MerchantSlipUrl/src/main/java/com/merchantslipurl/web/ApiExceptionHandler.java` -- map that exception to ProblemDetail 502
+- `MerchantSlipUrl/src/main/java/com/merchantslipurl/web/CreateUrlController.java` -- leave thin
+- `MerchantSlipUrl/src/test/java/com/merchantslipurl/web/CreateUrlIT.java` -- stub destinations; cover the matrix, including pasted URL vs sanitized key
+- `MerchantSlipUrl/src/test/java/com/merchantslipurl/web/ResolveUrlIT.java` -- create-then-resolve must stub a live destination
+- `MerchantSlipUrl/src/test/java/com/merchantslipurl/service/UrlLivenessCheckerTest.java` _(add)_ -- retry vs immediate 4xx, 3xx not followed, body cap
 - Do not change `_bmad/` or `.agents/`
 
 ## Tasks & Acceptance
 
 **Execution:**
-- [x] `shorty-url/build.gradle.kts` -- restclient starter and MockWebServer -- AD-4 stack
+- [x] `MerchantSlipUrl/build.gradle.kts` -- restclient starter and MockWebServer -- AD-4 stack
 - [x] `application.properties` (+ test props) -- attempts, timeout, max-body-bytes -- CAP-4 timings
 - [x] `UrlLivenessChecker` + `LivenessFailedException` -- pasted URL; no redirect follow; 2xx/3xx success; 4xx once; timeout/5xx ≤3; body stops at the cap; the attempt timeout also bounds the body read after headers -- CAP-4
 - [x] `UrlCreateService.java` -- liveness after sanitize, before lookup/bind, outside the bind transaction -- AD-4
@@ -105,11 +105,11 @@ context:
 
 ### Review Findings
 
-- [x] [Review][Patch] A live create returns the short code from before the probe [shorty-url/src/main/java/com/shortyurl/service/UrlCreateService.java:65]
-- [x] [Review][Patch] A failed probe of an expired binding is not shown to leave last access unchanged [shorty-url/src/main/java/com/shortyurl/service/UrlCreateService.java:56]
-- [x] [Review][Patch] A 4xx response with a null body is not shown to fail once [shorty-url/src/main/java/com/shortyurl/service/UrlLivenessChecker.java:105]
-- [x] [Review][Patch] An I/O error opening a non-4xx body is not shown to retry [shorty-url/src/main/java/com/shortyurl/service/UrlLivenessChecker.java:99]
-- [x] [Review][Defer] Unique-constraint loss on insert is untested [shorty-url/src/main/java/com/shortyurl/service/UrlCreateService.java:102] — deferred: the non-racing 409 and the successful insert are already asserted; forcing the constraint loss needs a concurrent insert
+- [x] [Review][Patch] A live create returns the short code from before the probe [MerchantSlipUrl/src/main/java/com/merchantslipurl/service/UrlCreateService.java:65]
+- [x] [Review][Patch] A failed probe of an expired binding is not shown to leave last access unchanged [MerchantSlipUrl/src/main/java/com/merchantslipurl/service/UrlCreateService.java:56]
+- [x] [Review][Patch] A 4xx response with a null body is not shown to fail once [MerchantSlipUrl/src/main/java/com/merchantslipurl/service/UrlLivenessChecker.java:105]
+- [x] [Review][Patch] An I/O error opening a non-4xx body is not shown to retry [MerchantSlipUrl/src/main/java/com/merchantslipurl/service/UrlLivenessChecker.java:99]
+- [x] [Review][Defer] Unique-constraint loss on insert is untested [MerchantSlipUrl/src/main/java/com/merchantslipurl/service/UrlCreateService.java:102] — deferred: the non-racing 409 and the successful insert are already asserted; forcing the constraint loss needs a concurrent insert
 
 #### Rejected
 
@@ -188,7 +188,7 @@ The configured per-attempt timeout covers connect, response headers, and the bod
 ## Verification
 
 **Commands:**
-- `shorty-url/gradlew.bat test --rerun-tasks` -- expected: BUILD SUCCESSFUL
+- `MerchantSlipUrl/gradlew.bat test --rerun-tasks` -- expected: BUILD SUCCESSFUL
 
 **Manual checks (if no CLI):**
 - Stub 200: authenticated `POST /api/v1/urls` succeeds. Stub 404: 502 and no binding. Stub 302: succeeds with one probe.

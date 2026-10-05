@@ -1,6 +1,6 @@
-# Shorty
+# MerchantSlipUrl
 
-Shorty is a small URL shortener for merchants. A merchant pastes a long destination, such as an order page, and receives a short URL. A customer who opens that short URL is redirected to the original address. The short code does not contain the destination.
+MerchantSlipUrl is a small URL shortener for merchants. A merchant pastes a long destination, such as an order page, and receives a short URL. A customer who opens that short URL is redirected to the original address. The short code does not contain the destination.
 
 The running service also serves a one-page merchant form at the site root.
 
@@ -23,7 +23,7 @@ The running service also serves a one-page merchant form at the site root.
 | Auth | Spring Security, HTTP Basic, stateless |
 | Persistence | Spring Data JPA and H2 (in-memory) |
 | Outbound probe | Spring RestClient on the JDK HTTP client |
-| Build | Gradle 9.7.1, via the wrapper in `shorty-url` |
+| Build | Gradle 9.7.1, via the wrapper in `MerchantSlipUrl` |
 | Tests | JUnit 5, Spring MockMvc, OkHttp MockWebServer |
 
 Bindings live in an in-memory H2 database. Restarting the process drops them.
@@ -35,7 +35,7 @@ Bindings live in an in-memory H2 database. Restarting the process drops them.
 
 ## Run
 
-From `shorty-url`:
+From `MerchantSlipUrl`:
 
 ```bat
 gradlew.bat bootRun
@@ -101,25 +101,25 @@ curl -I http://localhost:8080/spring-sale
 
 ## Configuration
 
-Defaults are in `shorty-url/src/main/resources/application.properties`.
+Defaults are in `MerchantSlipUrl/src/main/resources/application.properties`.
 
 | Property | Default | Meaning |
 | --- | --- | --- |
 | `server.port` | `8080` | HTTP port |
 | `spring.security.user.name` | `merchant` | Basic Auth user for create and assign |
 | `spring.security.user.password` | `merchant` | Basic Auth password |
-| `shortyurl.public-base-url` | `http://localhost:8080/` | Prefix used to build tiny URLs |
-| `shortyurl.inactivity` | `5m` | Idle time before a short URL expires |
-| `shortyurl.liveness.max-attempts` | `3` | Probe attempts for timeout and 5xx |
-| `shortyurl.liveness.timeout` | `30s` | Per-attempt probe budget |
-| `shortyurl.liveness.max-body-bytes` | `65536` | Body bytes read during a probe; hitting the cap does not fail a 2xx or 3xx |
+| `merchantslipurl.public-base-url` | `http://localhost:8080/` | Prefix used to build tiny URLs |
+| `merchantslipurl.inactivity` | `5m` | Idle time before a short URL expires |
+| `merchantslipurl.liveness.max-attempts` | `3` | Probe attempts for timeout and 5xx |
+| `merchantslipurl.liveness.timeout` | `30s` | Per-attempt probe budget |
+| `merchantslipurl.liveness.max-body-bytes` | `65536` | Body bytes read during a probe; hitting the cap does not fail a 2xx or 3xx |
 
 ## Security limitations
 
 This build is a local service. Address the items below before it is reachable beyond a trusted machine.
 
 - **One shared account.** Create and assign accept only the Basic Auth user in `application.properties`, default `merchant` / `merchant`. That password is prefilled on the merchant page and copied into `sessionStorage` for the tab. There is no second account, role, lockout, or record of who created a code. Replace the default, stop prefilling it, and use credentials that can be rotated.
-- **Basic Auth on plain HTTP.** The password travels as reversible Base64 on the `Authorization` header, and `shortyurl.public-base-url` is `http://localhost:8080/`. Serve the site over TLS. CSRF protection is off. The page sets `Authorization` itself, which another site cannot set, but a browser that has cached Basic credentials for this host will attach them to later requests. A non-API 401 still sends `WWW-Authenticate`, which is what causes that cache.
+- **Basic Auth on plain HTTP.** The password travels as reversible Base64 on the `Authorization` header, and `merchantslipurl.public-base-url` is `http://localhost:8080/`. Serve the site over TLS. CSRF protection is off. The page sets `Authorization` itself, which another site cannot set, but a browser that has cached Basic credentials for this host will attach them to later requests. A non-API 401 still sends `WWW-Authenticate`, which is what causes that cache.
 - **The liveness probe calls the pasted URL.** Create sends a server-side GET to any `http` or `https` host, including loopback and private addresses. Redirects are not followed, and the response body is not returned to the caller. Restrict which hosts the probe may contact.
 - **Resolve is a public redirect.** `GET /{shortCode}` returns 302 to the stored paste with no login. A caller who can create can publish a short name on this host that sends people to any accepted URL. A destination that carries a query token is revealed to anyone who opens the short URL.
 - **New routes are public unless listed.** `SecurityConfig` requires authentication only for `POST /api/v1/urls` and `POST /api/v1/urls/**`. Every other request is permitted.
@@ -251,7 +251,7 @@ sequenceDiagram
 
 ## Tests
 
-From `shorty-url`:
+From `MerchantSlipUrl`:
 
 ```bat
 gradlew.bat test
@@ -259,12 +259,12 @@ gradlew.bat test
 
 The test profile shortens inactivity to 5 seconds and the liveness timeout to 500 milliseconds so the suite does not wait out the production settings.
 
-The same run writes a JaCoCo report with line and branch coverage. The HTML report is `shorty-url/build/reports/jacoco/test/html/index.html`, and the XML report is `shorty-url/build/reports/jacoco/test/jacocoTestReport.xml`. `gradlew.bat jacocoTestReport` runs the tests and writes those files.
+The same run writes a JaCoCo report with line and branch coverage. The HTML report is `MerchantSlipUrl/build/reports/jacoco/test/html/index.html`, and the XML report is `MerchantSlipUrl/build/reports/jacoco/test/jacocoTestReport.xml`. `gradlew.bat jacocoTestReport` runs the tests and writes those files.
 
 ## Project layout
 
 ```
-shorty-url/          Spring Boot service
+MerchantSlipUrl/          Spring Boot service
   src/main/java/     controllers, services, and the Binding entity
   src/main/resources/static/index.html
   src/test/java/     unit and MockMvc tests

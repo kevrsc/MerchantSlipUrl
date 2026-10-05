@@ -9,7 +9,7 @@ baseline_commit: 'beb639452e2c4539392b50fd64244cf668892d42'
 context:
   - '{project-root}/_bmad-output/specs/spec-tiny-url-service/SPEC.md'
   - '{project-root}/_bmad-output/specs/spec-tiny-url-service/create-pipeline.md'
-  - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-ShortyUrlBmad-2026-09-25/ARCHITECTURE-SPINE.md'
+  - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-MerchantSlipUrl-2026-09-25/ARCHITECTURE-SPINE.md'
 ---
 
 <frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">
@@ -65,16 +65,16 @@ context:
 
 ## Code Map
 
-- `shorty-url/src/main/java/com/shortyurl/web/CreateUrlRequest.java` -- today only `url`. Add optional `vanity`
-- `shorty-url/src/main/java/com/shortyurl/web/CreateUrlController.java` -- `POST /api/v1/urls` calls `UrlCreateService.create`. Pass vanity through. 201 vs 200 stays `CreateUrlResult.created()`
-- `shorty-url/src/main/java/com/shortyurl/web/SecurityConfig.java` -- `POST /api/v1/urls` and `POST /api/v1/urls/**` are already authenticated. Reuse that for assign. Do not authenticate resolve
-- `shorty-url/src/main/java/com/shortyurl/service/UrlCreateService.java` -- pipeline is trim, sanitize, liveness, then lookup or insert. Validate vanity syntax, then availability, **before** liveness. On insert, use the vanity instead of `ShortCodeGenerator` when one was supplied. `DataIntegrityViolationException` may regenerate only a **generated** code; a supplied vanity that loses the race is refused, not replaced. Existing sanitized URL still goes through `reuseExisting` and ignores vanity
-- `shorty-url/src/main/java/com/shortyurl/service/ShortCodeGenerator.java` -- keep for the no-vanity path. Do not use it to “fix” a taken vanity
-- `shorty-url/src/main/java/com/shortyurl/persistence/Binding.java` -- `shortCode` is already unique and mutable, length 64. Do not add a column
-- `shorty-url/src/main/java/com/shortyurl/persistence/BindingRepository.java` -- reuse `findByShortCode` and `findBySanitizedUrl`. `existsByShortCode` is already there
-- `shorty-url/src/main/java/com/shortyurl/web/ResolveUrlController.java` -- `GET /{shortCode:(?!(?:error|api)$)[A-Za-z0-9_-]{1,64}}`. Vanity syntax must stay inside this pattern. Do not change resolve
-- `shorty-url/src/main/java/com/shortyurl/web/ApiExceptionHandler.java` -- map the taken-vanity signal to ProblemDetail 409. Leave 400, 404, 410, and 502 as they are
-- `shorty-url/src/main/resources/application.properties` -- `shortyurl.public-base-url` is how assign recognizes a tiny URL. Do not hard-code the host in the service
+- `MerchantSlipUrl/src/main/java/com/merchantslipurl/web/CreateUrlRequest.java` -- today only `url`. Add optional `vanity`
+- `MerchantSlipUrl/src/main/java/com/merchantslipurl/web/CreateUrlController.java` -- `POST /api/v1/urls` calls `UrlCreateService.create`. Pass vanity through. 201 vs 200 stays `CreateUrlResult.created()`
+- `MerchantSlipUrl/src/main/java/com/merchantslipurl/web/SecurityConfig.java` -- `POST /api/v1/urls` and `POST /api/v1/urls/**` are already authenticated. Reuse that for assign. Do not authenticate resolve
+- `MerchantSlipUrl/src/main/java/com/merchantslipurl/service/UrlCreateService.java` -- pipeline is trim, sanitize, liveness, then lookup or insert. Validate vanity syntax, then availability, **before** liveness. On insert, use the vanity instead of `ShortCodeGenerator` when one was supplied. `DataIntegrityViolationException` may regenerate only a **generated** code; a supplied vanity that loses the race is refused, not replaced. Existing sanitized URL still goes through `reuseExisting` and ignores vanity
+- `MerchantSlipUrl/src/main/java/com/merchantslipurl/service/ShortCodeGenerator.java` -- keep for the no-vanity path. Do not use it to “fix” a taken vanity
+- `MerchantSlipUrl/src/main/java/com/merchantslipurl/persistence/Binding.java` -- `shortCode` is already unique and mutable, length 64. Do not add a column
+- `MerchantSlipUrl/src/main/java/com/merchantslipurl/persistence/BindingRepository.java` -- reuse `findByShortCode` and `findBySanitizedUrl`. `existsByShortCode` is already there
+- `MerchantSlipUrl/src/main/java/com/merchantslipurl/web/ResolveUrlController.java` -- `GET /{shortCode:(?!(?:error|api)$)[A-Za-z0-9_-]{1,64}}`. Vanity syntax must stay inside this pattern. Do not change resolve
+- `MerchantSlipUrl/src/main/java/com/merchantslipurl/web/ApiExceptionHandler.java` -- map the taken-vanity signal to ProblemDetail 409. Leave 400, 404, 410, and 502 as they are
+- `MerchantSlipUrl/src/main/resources/application.properties` -- `merchantslipurl.public-base-url` is how assign recognizes a tiny URL. Do not hard-code the host in the service
 - Tests live next to `CreateUrlIT` / `ResolveUrlIT`. Cover the matrix, including “old code is 404” and “vanity on an existing long URL is not applied”
 - Do not change `_bmad/` or `.agents/`
 
@@ -97,10 +97,10 @@ context:
 
 ### Review Findings
 
-- [x] [Review][Patch] Recreate with a vanity owned by another binding is untested [shorty-url/src/test/java/com/shortyurl/web/CreateUrlIT.java:507]
-- [x] [Review][Patch] A sanitized URL longer than 2048 characters is reported as a short-code or vanity conflict [shorty-url/src/main/java/com/shortyurl/service/UrlCreateService.java:102]
-- [x] [Review][Patch] Large-body create tests fail when the call takes 450 ms or more [shorty-url/src/test/java/com/shortyurl/web/CreateUrlIT.java:115]
-- [x] [Review][Defer] Lost unique-constraint races are not raised in tests [shorty-url/src/main/java/com/shortyurl/service/UrlCreateService.java:125] — deferred: the non-racing 409 is already asserted; forcing the constraint loss needs a concurrent insert this suite does not set up
+- [x] [Review][Patch] Recreate with a vanity owned by another binding is untested [MerchantSlipUrl/src/test/java/com/merchantslipurl/web/CreateUrlIT.java:507]
+- [x] [Review][Patch] A sanitized URL longer than 2048 characters is reported as a short-code or vanity conflict [MerchantSlipUrl/src/main/java/com/merchantslipurl/service/UrlCreateService.java:102]
+- [x] [Review][Patch] Large-body create tests fail when the call takes 450 ms or more [MerchantSlipUrl/src/test/java/com/merchantslipurl/web/CreateUrlIT.java:115]
+- [x] [Review][Defer] Lost unique-constraint races are not raised in tests [MerchantSlipUrl/src/main/java/com/merchantslipurl/service/UrlCreateService.java:125] — deferred: the non-racing 409 is already asserted; forcing the constraint loss needs a concurrent insert this suite does not set up
 
 #### Rejected
 
@@ -148,7 +148,7 @@ Assign looks up `url` as a tiny URL when it starts with the configured public ba
 ## Verification
 
 **Commands:**
-- `shorty-url/gradlew.bat test --rerun-tasks` -- expected: BUILD SUCCESSFUL
+- `MerchantSlipUrl/gradlew.bat test --rerun-tasks` -- expected: BUILD SUCCESSFUL
 
 **Manual checks (if no CLI):**
 - Create with a vanity, open that path, then assign a second free vanity and confirm the first path no longer redirects.

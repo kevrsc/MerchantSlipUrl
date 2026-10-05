@@ -1,10 +1,10 @@
 # Agent notes
 
-Shorty is a Java 21 Spring Boot URL shortener. Application code lives in `shorty-url/`. The product contract is `_bmad-output/specs/spec-tiny-url-service/SPEC.md`, with the ordered create steps in `create-pipeline.md` beside it.
+MerchantSlipUrl is a Java 21 Spring Boot URL shortener. Application code lives in `MerchantSlipUrl/`. The product contract is `_bmad-output/specs/spec-tiny-url-service/SPEC.md`, with the ordered create steps in `create-pipeline.md` beside it.
 
 ## Commands
 
-Run these from `shorty-url`. Use the wrapper, not a globally installed Gradle.
+Run these from `MerchantSlipUrl`. Use the wrapper, not a globally installed Gradle.
 
 - `gradlew.bat bootRun` starts the service on port 8080.
 - `gradlew.bat test` runs the suite. On macOS or Linux the command is `./gradlew`.
@@ -13,18 +13,18 @@ The test profile sets inactivity to 5 seconds and the liveness timeout to 500 mi
 
 ## Where to change behavior
 
-- HTTP and problem details: `shorty-url/src/main/java/com/shortyurl/web/`
+- HTTP and problem details: `MerchantSlipUrl/src/main/java/com/merchantslipurl/web/`
 - Create, assign, resolve, sanitize, and liveness: `.../service/`
 - The only persisted type is `persistence/Binding.java`. `sanitizedUrl` and `shortCode` are each unique. `shortCode` may change on vanity assign. `originalUrl` stays the merchant's paste.
 - Time comes from the injected `Clock`. Tests move `MutableClock`. Do not call `Instant.now()` for expiry decisions.
-- Merchant page: `shorty-url/src/main/resources/static/index.html`. It calls the same API as `curl`.
+- Merchant page: `MerchantSlipUrl/src/main/resources/static/index.html`. It calls the same API as `curl`.
 
 Create and assign require HTTP Basic Auth. `GET /{shortCode}` does not. Do not put create credentials on resolve.
 
 ## Behavior that is easy to get wrong
 
 - Liveness probes the trimmed pasted URL and does not follow redirects. A 3xx on that URL is success. Store the paste, not the redirect target.
-- A 4xx fails once. Timeout and 5xx retry up to `shortyurl.liveness.max-attempts`. Hitting the body cap does not fail a 2xx or 3xx.
+- A 4xx fails once. Timeout and 5xx retry up to `merchantslipurl.liveness.max-attempts`. Hitting the body cap does not fail a 2xx or 3xx.
 - If a sanitized URL already has a binding, create returns that row's current short code and does not apply a requested vanity. A taken vanity is 409 only when the destination is new.
 - After the probe, reload the binding before returning it. The short code may have changed during the check.
 - A failed probe does not refresh `lastAccessedAt` on an expired row.
