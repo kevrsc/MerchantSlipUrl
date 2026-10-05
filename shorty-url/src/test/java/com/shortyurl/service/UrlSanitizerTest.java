@@ -28,6 +28,20 @@ class UrlSanitizerTest {
 	}
 
 	@Test
+	void rejectsNull() {
+		assertThatThrownBy(() -> sanitizer.sanitize(null))
+				.isInstanceOf(InvalidUrlException.class)
+				.hasMessage("url must not be blank");
+	}
+
+	@Test
+	void rejectsMissingScheme() {
+		assertThatThrownBy(() -> sanitizer.sanitize("shop.example.com/a"))
+				.isInstanceOf(InvalidUrlException.class)
+				.hasMessage("url must use http or https");
+	}
+
+	@Test
 	void rejectsHostlessUrl() {
 		assertThatThrownBy(() -> sanitizer.sanitize("http:///path"))
 				.isInstanceOf(InvalidUrlException.class);

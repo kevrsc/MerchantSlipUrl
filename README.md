@@ -114,6 +114,33 @@ Defaults are in `shorty-url/src/main/resources/application.properties`.
 | `shortyurl.liveness.timeout` | `30s` | Per-attempt probe budget |
 | `shortyurl.liveness.max-body-bytes` | `65536` | Body bytes read during a probe; hitting the cap does not fail a 2xx or 3xx |
 
+## Security limitations
+
+This build is a local service. Address the items below before it is reachable beyond a trusted machine.
+
+- **One shared account.** Create and assign accept only the Basic Auth user in `application.properties`, default `merchant` / `merchant`. That password is prefilled on the merchant page and copied into `sessionStorage` for the tab. There is no second account, role, lockout, or record of who created a code. Replace the default, stop prefilling it, and use credentials that can be rotated.
+- **Basic Auth on plain HTTP.** The password travels as reversible Base64 on the `Authorization` header, and `shortyurl.public-base-url` is `http://localhost:8080/`. Serve the site over TLS. CSRF protection is off. The page sets `Authorization` itself, which another site cannot set, but a browser that has cached Basic credentials for this host will attach them to later requests. A non-API 401 still sends `WWW-Authenticate`, which is what causes that cache.
+- **The liveness probe calls the pasted URL.** Create sends a server-side GET to any `http` or `https` host, including loopback and private addresses. Redirects are not followed, and the response body is not returned to the caller. Restrict which hosts the probe may contact.
+- **Resolve is a public redirect.** `GET /{shortCode}` returns 302 to the stored paste with no login. A caller who can create can publish a short name on this host that sends people to any accepted URL. A destination that carries a query token is revealed to anyone who opens the short URL.
+- **New routes are public unless listed.** `SecurityConfig` requires authentication only for `POST /api/v1/urls` and `POST /api/v1/urls/**`. Every other request is permitted.
+- **The database has no password.** H2 uses user `sa` with an empty password. The console is off and the data is in memory. A production database needs its own credentials, and bindings need a store that survives a restart.
+
+## Concurrency
+
+One process handles requests on its own threads. The database is the coordination between them. `Binding` has no version column, and the services do not take row locks. Transactions use the database default isolation, which is read committed on H2 and on PostgreSQL.
+
+Create looks up the sanitized URL, probes the destination, then inserts. The probe stays outside the write transaction, so a slow check does not hold a database connection. The insert is one short transaction. Two unique indexes close races the lookup cannot: `sanitized_url` makes concurrent creates of the same destination converge on one row, and `short_code` keeps two bindings from sharing a code. A loser on `sanitized_url` returns the row that won. A loser on a generated code tries a new code, up to 8 times. A loser on a requested vanity is **409**.
+
+Resolve reads the row and writes `lastAccessedAt` in one transaction. Assign reloads the row and updates `short_code` in one transaction. A unique-index failure on that update is **409**.
+
+Those indexes still hold if several instances share a PostgreSQL database. The gaps below show up once more than one process is writing, and once each open waits on a network round trip.
+
+- Every successful open updates that one row. Concurrent opens of a busy code take turns on the row lock, and the redirect waits for the write. Inside one H2 process that wait stays cheap.
+- Two assigns of the same binding to two free vanities can both return **200**. The later commit keeps its code. The earlier code stops resolving, after that caller was already told the assign succeeded.
+- The liveness probe can run for up to 90 seconds between the existence check and the insert. The unique indexes settle the insert. They leave a resolve free to return **410** for a row a concurrent create has just reactivated, and they leave two reactivations free to store the earlier `lastAccessedAt`.
+- Each instance judges expiry with its own clock. Instances that disagree about the time disagree about whether a code is still active.
+- Convergence depends on both unique indexes being present. A PostgreSQL schema that omits one of them no longer collapses those races.
+
 ## Diagrams
 
 The classes below are the path from HTTP to the stored binding. Controllers stay thin. Create, assign, and resolve each have a service. `Binding` is the only persisted row: one short code, the original paste, and a sanitized key used for duplicates.
@@ -231,6 +258,8 @@ gradlew.bat test
 ```
 
 The test profile shortens inactivity to 5 seconds and the liveness timeout to 500 milliseconds so the suite does not wait out the production settings.
+
+The same run writes a JaCoCo report with line and branch coverage. The HTML report is `shorty-url/build/reports/jacoco/test/html/index.html`, and the XML report is `shorty-url/build/reports/jacoco/test/jacocoTestReport.xml`. `gradlew.bat jacocoTestReport` runs the tests and writes those files.
 
 ## Project layout
 

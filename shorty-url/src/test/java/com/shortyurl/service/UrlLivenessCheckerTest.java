@@ -190,6 +190,54 @@ class UrlLivenessCheckerTest {
 	}
 
 	@Test
+	void serverErrorWithNullBody_retriesThenFails() throws Exception {
+		try (MockWebServer server = new MockWebServer()) {
+			server.start();
+			server.enqueue(new MockResponse().setResponseCode(500));
+			server.enqueue(new MockResponse().setResponseCode(502));
+			server.enqueue(new MockResponse().setResponseCode(503));
+			RestClient.Builder builder = RestClient.builder().requestInterceptor((request, body, execution) ->
+					new NullBodyResponse(execution.execute(request, body)));
+			String url = server.url("/down").toString();
+
+			assertThatThrownBy(() -> new UrlLivenessChecker(builder, 3, Duration.ofMillis(500), 128).check(url))
+					.isInstanceOf(LivenessFailedException.class);
+			assertThat(server.getRequestCount()).isEqualTo(3);
+		}
+	}
+
+	@Test
+	void wrappedClientError_failsOnceWithoutRetry() throws Exception {
+		try (MockWebServer server = new MockWebServer()) {
+			server.start();
+			server.enqueue(new MockResponse().setResponseCode(200).setBody("later"));
+			RestClient.Builder builder = RestClient.builder().requestInterceptor((request, body, execution) -> {
+				throw new IllegalStateException("wrapped", new LivenessFailedException("Destination failed the liveness check"));
+			});
+			String url = server.url("/missing").toString();
+
+			assertThatThrownBy(() -> new UrlLivenessChecker(builder, 3, Duration.ofMillis(500), 128).check(url))
+					.isInstanceOf(LivenessFailedException.class);
+			assertThat(server.getRequestCount()).isZero();
+		}
+	}
+
+	@Test
+	void bodyCloseFailure_stillAcceptsLiveResponse() throws Exception {
+		try (MockWebServer server = new MockWebServer()) {
+			server.start();
+			server.enqueue(new MockResponse().setResponseCode(200).setBody("ok"));
+			RestClient.Builder builder = RestClient.builder().requestInterceptor((request, body, execution) ->
+					new CloseFailureResponse(execution.execute(request, body)));
+
+			new UrlLivenessChecker(builder, 3, Duration.ofMillis(500), 128)
+					.check(server.url("/live").toString());
+
+			assertThat(server.getRequestCount()).isEqualTo(1);
+		}
+	}
+
+	@Test
 	void serverError_retriesThenFails() throws Exception {
 		try (MockWebServer server = new MockWebServer()) {
 			server.start();
@@ -316,6 +364,51 @@ class UrlLivenessCheckerTest {
 		@Override
 		public InputStream getBody() {
 			return null;
+		}
+
+		@Override
+		public HttpStatusCode getStatusCode() throws IOException {
+			return this.delegate.getStatusCode();
+		}
+
+		@Override
+		public String getStatusText() throws IOException {
+			return this.delegate.getStatusText();
+		}
+
+		@Override
+		public HttpHeaders getHeaders() {
+			return this.delegate.getHeaders();
+		}
+
+		@Override
+		public void close() {
+			this.delegate.close();
+		}
+	}
+
+	private static final class CloseFailureResponse implements ClientHttpResponse {
+
+		private final ClientHttpResponse delegate;
+
+		private CloseFailureResponse(ClientHttpResponse delegate) {
+			this.delegate = delegate;
+		}
+
+		@Override
+		public InputStream getBody() {
+			return new InputStream() {
+				@Override
+				public int read() {
+					return -1;
+				}
+
+				@Override
+				public void close() throws IOException {
+					CloseFailureResponse.this.delegate.close();
+					throw new IOException("close failed");
+				}
+			};
 		}
 
 		@Override

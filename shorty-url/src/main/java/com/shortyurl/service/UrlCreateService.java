@@ -2,6 +2,8 @@ package com.shortyurl.service;
 
 import com.shortyurl.persistence.Binding;
 import com.shortyurl.persistence.BindingRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -14,6 +16,8 @@ import java.util.Optional;
 
 @Service
 public class UrlCreateService {
+
+	private static final Logger log = LoggerFactory.getLogger(UrlCreateService.class);
 
 	private static final int SHORT_CODE_ATTEMPTS = 8;
 
@@ -44,16 +48,31 @@ public class UrlCreateService {
 
 	public CreateUrlResult create(String rawUrl, String vanity) {
 		String originalUrl = rawUrl.trim();
-		String sanitizedUrl = urlSanitizer.sanitize(originalUrl);
-		String requestedVanity = Vanity.optional(vanity);
+		String sanitizedUrl;
+		String requestedVanity;
+		try {
+			sanitizedUrl = urlSanitizer.sanitize(originalUrl);
+			requestedVanity = Vanity.optional(vanity);
+		}
+		catch (InvalidUrlException | InvalidVanityException ex) {
+			log.warn("Create refused: {}", ex.getMessage());
+			throw ex;
+		}
 		Optional<Binding> existing = bindingRepository.findBySanitizedUrl(sanitizedUrl);
 		if (existing.isEmpty()
 				&& requestedVanity != null
 				&& bindingRepository.existsByShortCode(requestedVanity)) {
+			log.warn("Create refused for {}: vanity {} is already taken", originalUrl, requestedVanity);
 			throw new VanityTakenException(requestedVanity);
 		}
 
-		urlLivenessChecker.check(originalUrl);
+		try {
+			urlLivenessChecker.check(originalUrl);
+		}
+		catch (LivenessFailedException ex) {
+			log.warn("Create refused for {}: destination failed the liveness check", originalUrl);
+			throw ex;
+		}
 
 		return existing
 				.map(this::reuseExisting)
@@ -65,6 +84,7 @@ public class UrlCreateService {
 	private CreateUrlResult reuseExisting(Binding existing) {
 		Binding current = bindingRepository.findById(existing.getId()).orElseThrow();
 		if (!isExpired(current)) {
+			log.info("Create returned existing short URL {} for {}", current.getShortCode(), current.getOriginalUrl());
 			return new CreateUrlResult(current, false);
 		}
 		Binding reactivated = transactionTemplate.execute(status -> {
@@ -75,6 +95,7 @@ public class UrlCreateService {
 			binding.setLastAccessedAt(clock.instant());
 			return bindingRepository.saveAndFlush(binding);
 		});
+		log.info("Create reactivated expired short URL {} for {}", reactivated.getShortCode(), reactivated.getOriginalUrl());
 		return new CreateUrlResult(reactivated, false);
 	}
 
@@ -98,6 +119,7 @@ public class UrlCreateService {
 					binding.setCreatedAt(clock.instant());
 					return bindingRepository.saveAndFlush(binding);
 				});
+				log.info("Created short URL {} for {}", saved.getShortCode(), originalUrl);
 				return new CreateUrlResult(saved, true);
 			}
 			catch (DataIntegrityViolationException ex) {
@@ -108,6 +130,7 @@ public class UrlCreateService {
 				// shortCode unique conflict — regenerate and retry
 			}
 		}
+		log.error("Create failed for {}: unable to allocate a unique short code", originalUrl);
 		throw new IllegalStateException("Unable to allocate a unique short code");
 	}
 
@@ -121,6 +144,7 @@ public class UrlCreateService {
 				binding.setCreatedAt(clock.instant());
 				return bindingRepository.saveAndFlush(binding);
 			});
+			log.info("Created short URL {} for {}", saved.getShortCode(), originalUrl);
 			return new CreateUrlResult(saved, true);
 		}
 		catch (DataIntegrityViolationException ex) {
@@ -128,6 +152,7 @@ public class UrlCreateService {
 			if (existing.isPresent()) {
 				return reuseExisting(existing.get());
 			}
+			log.warn("Create refused for {}: vanity {} is already taken", originalUrl, vanity);
 			throw new VanityTakenException(vanity);
 		}
 	}

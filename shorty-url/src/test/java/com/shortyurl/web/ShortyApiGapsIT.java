@@ -56,6 +56,13 @@ class ShortyApiGapsIT {
 	}
 
 	@Test
+	void invalidAuthOutsideApi_sendsWwwAuthenticate() throws Exception {
+		mockMvc.perform(get("/").with(SecurityMockMvcRequestPostProcessors.httpBasic("merchant", "wrong")))
+				.andExpect(status().isUnauthorized())
+				.andExpect(header().string("WWW-Authenticate", "Basic realm=\"Realm\", charset=\"UTF-8\""));
+	}
+
+	@Test
 	void assignBlankUrl_returns400AndStoresNothing() throws Exception {
 		mockMvc.perform(assign("""
 						{"url":"   ","vanity":"spring-sale"}
