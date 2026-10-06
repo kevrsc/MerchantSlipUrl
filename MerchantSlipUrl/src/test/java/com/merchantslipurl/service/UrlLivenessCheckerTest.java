@@ -34,6 +34,7 @@ class UrlLivenessCheckerTest {
 			RecordedRequest request = server.takeRequest();
 			assertThat(request.getMethod()).isEqualTo("GET");
 			assertThat(request.getPath()).isEqualTo("/live");
+			assertThat(request.getHeader("User-Agent")).isEqualTo(UrlLivenessChecker.USER_AGENT);
 			assertThat(server.getRequestCount()).isEqualTo(1);
 		}
 	}

@@ -1,6 +1,7 @@
 package com.merchantslipurl.service;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -17,6 +18,9 @@ import java.time.Duration;
 public class UrlLivenessChecker {
 
 	static final String FAILURE_MESSAGE = "Destination failed the liveness check";
+
+	// Browser identity. The JDK default Java-http-client draws a 429 from sites such as Yahoo.
+	static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 	private final RestClient restClient;
 	private final int maxAttempts;
@@ -65,6 +69,7 @@ public class UrlLivenessChecker {
 	private void probe(String originalUrl) {
 		this.restClient.get()
 				.uri(URI.create(originalUrl))
+				.header(HttpHeaders.USER_AGENT, USER_AGENT)
 				.exchange((request, response) -> {
 					HttpStatusCode status = response.getStatusCode();
 					InputStream body = openBody(response, status);
